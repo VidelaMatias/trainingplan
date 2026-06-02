@@ -8,12 +8,14 @@ import { getOwedMonths } from '@/lib/payments'
 
 async function getClientsWithPlans() {
   const supabase = await createClient()
-  const clients = await getClients()
 
-  const { data: plans } = await supabase
-    .from('training_plans')
-    .select('id, alumno_id, start_date, end_date, title, active, created_at, created_by, notes')
-    .order('start_date', { ascending: false })
+  const [clients, { data: plans }] = await Promise.all([
+    getClients(),
+    supabase
+      .from('training_plans')
+      .select('id, alumno_id, start_date, end_date, title, active, created_at, created_by, notes')
+      .order('start_date', { ascending: false }),
+  ])
 
   const plansByClient = new Map<string, TrainingPlan[]>()
   for (const plan of plans ?? []) {

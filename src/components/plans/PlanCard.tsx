@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { TrainingPlan, TrainingPlanWeek, DAYS, getPlanStatus } from '@/types/training-plan'
 import { deletePlanAction } from '@/app/dashboard/clients/[id]/plans/actions'
+import Spinner from '@/components/ui/Spinner'
 
 interface PlanCardProps {
   plan: TrainingPlan & { training_plan_weeks?: TrainingPlanWeek[] }
@@ -21,19 +22,32 @@ export default function PlanCard({ plan, clientId, clientRhythmNotes }: PlanCard
   const router = useRouter()
   const [expanded, setExpanded] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const [loading, setLoading] = useState(false)
+  const [loadingDelete, setLoadingDelete] = useState(false)
+  const [loadingExport, setLoadingExport] = useState(false)
 
   const status = getPlanStatus(plan)
   const config = STATUS_CONFIG[status]
   const weeks = [...(plan.training_plan_weeks ?? [])].sort((a, b) => a.week_number - b.week_number)
 
   async function handleDelete() {
-    setLoading(true)
+    setLoadingDelete(true)
     await deletePlanAction(plan.id, clientId)
   }
 
-  function handleExport() {
-    window.open(`/api/plans/${plan.id}/export`, '_blank')
+  async function handleExport() {
+    setLoadingExport(true)
+    try {
+      const res = await fetch(`/api/plans/${plan.id}/export`)
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `plan-${plan.title.toLowerCase().replace(/\s+/g, '-')}.xlsx`
+      a.click()
+      URL.revokeObjectURL(url)
+    } finally {
+      setLoadingExport(false)
+    }
   }
 
   return (
@@ -70,12 +84,17 @@ export default function PlanCard({ plan, clientId, clientRhythmNotes }: PlanCard
           {/* Export */}
           <button
             onClick={handleExport}
-            className="p-1.5 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition"
+            disabled={loadingExport}
+            className="p-1.5 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition disabled:opacity-60"
             title="Descargar Excel"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
+            {loadingExport ? (
+              <Spinner className="w-4 h-4 text-green-600" />
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            )}
           </button>
 
           {/* Edit */}
@@ -102,10 +121,19 @@ export default function PlanCard({ plan, clientId, clientRhythmNotes }: PlanCard
             </button>
           ) : (
             <div className="flex items-center gap-1">
-              <button onClick={handleDelete} disabled={loading} className="px-2 py-1 text-xs bg-red-600 hover:bg-red-700 text-white rounded-lg transition">
-                {loading ? '...' : 'Sí'}
+              <button
+                onClick={handleDelete}
+                disabled={loadingDelete}
+                className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded-lg transition"
+              >
+                {loadingDelete ? <Spinner /> : null}
+                {loadingDelete ? 'Borrando' : 'Sí'}
               </button>
-              <button onClick={() => setConfirmDelete(false)} className="px-2 py-1 text-xs bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg transition">
+              <button
+                onClick={() => setConfirmDelete(false)}
+                disabled={loadingDelete}
+                className="px-2 py-1 text-xs bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg transition"
+              >
                 No
               </button>
             </div>

@@ -4,36 +4,46 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getSundayFrom, TrainingPlanWeek } from '@/types/training-plan'
 
-export async function getClientPlans(clientId: string) {
+async function getAuthUser() {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  return { supabase, user }
+}
+
+export async function getClientPlans(clientId: string) {
+  const { supabase } = await getAuthUser()
   const { data, error } = await supabase
     .from('training_plans')
     .select('*, training_plan_weeks(*)')
     .eq('alumno_id', clientId)
     .order('start_date', { ascending: false })
 
-  if (error) throw new Error(error.message)
+  if (error) throw new Error('Error al cargar los planes')
   return data ?? []
 }
 
 export async function getPlan(planId: string) {
-  const supabase = await createClient()
+  const { supabase } = await getAuthUser()
   const { data, error } = await supabase
     .from('training_plans')
     .select('*, training_plan_weeks(*)')
     .eq('id', planId)
     .single()
 
-  if (error) throw new Error(error.message)
+  if (error) throw new Error('Plan no encontrado')
   return data
 }
 
 export async function createPlanAction(clientId: string, formData: FormData) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { supabase, user } = await getAuthUser()
   if (!user) return { error: 'No autorizado' }
 
-  const weeks: TrainingPlanWeek[] = JSON.parse(formData.get('weeks') as string)
+  let weeks: TrainingPlanWeek[]
+  try {
+    weeks = JSON.parse(formData.get('weeks') as string)
+  } catch {
+    return { error: 'Datos de semanas inválidos' }
+  }
   if (!weeks.length) return { error: 'El plan debe tener al menos una semana' }
 
   const startDate = weeks[0].week_start
@@ -53,20 +63,35 @@ export async function createPlanAction(clientId: string, formData: FormData) {
     .select()
     .single()
 
-  if (planError || !plan) return { error: planError?.message ?? 'Error al crear el plan' }
+  if (planError || !plan) return { error: 'No se pudo crear el plan' }
 
   const weekRows = weeks.map((w) => ({ ...w, plan_id: plan.id }))
   const { error: weeksError } = await supabase.from('training_plan_weeks').insert(weekRows)
-  if (weeksError) return { error: weeksError.message }
+  if (weeksError) return { error: 'No se pudieron guardar las semanas' }
 
   revalidatePath(`/dashboard/clients/${clientId}`)
   return { success: true }
 }
 
 export async function updatePlanAction(planId: string, clientId: string, formData: FormData) {
-  const supabase = await createClient()
+  const { supabase, user } = await getAuthUser()
+  if (!user) return { error: 'No autorizado' }
 
-  const weeks: TrainingPlanWeek[] = JSON.parse(formData.get('weeks') as string)
+  const { data: existing } = await supabase
+    .from('training_plans')
+    .select('id')
+    .eq('id', planId)
+    .eq('created_by', user.id)
+    .single()
+
+  if (!existing) return { error: 'No autorizado' }
+
+  let weeks: TrainingPlanWeek[]
+  try {
+    weeks = JSON.parse(formData.get('weeks') as string)
+  } catch {
+    return { error: 'Datos de semanas inválidos' }
+  }
   if (!weeks.length) return { error: 'El plan debe tener al menos una semana' }
 
   const startDate = weeks[0].week_start
@@ -82,22 +107,32 @@ export async function updatePlanAction(planId: string, clientId: string, formDat
     })
     .eq('id', planId)
 
-  if (planError) return { error: planError.message }
+  if (planError) return { error: 'No se pudo actualizar el plan' }
 
-  // Replace all weeks
   await supabase.from('training_plan_weeks').delete().eq('plan_id', planId)
   const weekRows = weeks.map(({ id: _id, plan_id: _pid, ...rest }) => ({ ...rest, plan_id: planId }))
   const { error: weeksError } = await supabase.from('training_plan_weeks').insert(weekRows)
-  if (weeksError) return { error: weeksError.message }
+  if (weeksError) return { error: 'No se pudieron guardar las semanas' }
 
   revalidatePath(`/dashboard/clients/${clientId}`)
   return { success: true }
 }
 
 export async function deletePlanAction(planId: string, clientId: string) {
-  const supabase = await createClient()
+  const { supabase, user } = await getAuthUser()
+  if (!user) return { error: 'No autorizado' }
+
+  const { data: existing } = await supabase
+    .from('training_plans')
+    .select('id')
+    .eq('id', planId)
+    .eq('created_by', user.id)
+    .single()
+
+  if (!existing) return { error: 'No autorizado' }
+
   const { error } = await supabase.from('training_plans').delete().eq('id', planId)
-  if (error) return { error: error.message }
+  if (error) return { error: 'No se pudo eliminar el plan' }
 
   revalidatePath(`/dashboard/clients/${clientId}`)
   return { success: true }

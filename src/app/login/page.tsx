@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { login } from "@/app/auth/actions";
+import Spinner from "@/components/ui/Spinner";
 
 export default function LoginPage() {
     const [error, setError] = useState<string | null>(null);
@@ -94,10 +96,17 @@ export default function LoginPage() {
                         </div>
                     )}
 
+                    <div className='text-right'>
+                        <Link href='/forgot-password' className='text-sm text-blue-600 hover:underline'>
+                            ¿Olvidaste tu contraseña?
+                        </Link>
+                    </div>
+
                     <button
                         type='submit'
                         disabled={loading}
-                        className='w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-lg transition focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2'>
+                        className='w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-lg transition focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2'>
+                        {loading && <Spinner />}
                         {loading ? "Ingresando..." : "Ingresar"}
                     </button>
                 </form>

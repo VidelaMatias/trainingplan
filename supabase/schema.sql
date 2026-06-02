@@ -15,9 +15,10 @@ drop table if exists public.alumnos cascade;
 create table public.alumnos (
   id            uuid default gen_random_uuid() primary key,
   created_at    timestamp with time zone default now() not null,
+  created_by    uuid references auth.users(id) not null,
   first_name    text not null,
   last_name     text not null,
-  email         text unique,
+  email         text,
   phone         text,
   date_of_birth date,
   goal          text,
@@ -28,10 +29,14 @@ create table public.alumnos (
 
 alter table public.alumnos enable row level security;
 
-create policy "alumnos_select" on public.alumnos for select to authenticated using (true);
-create policy "alumnos_insert" on public.alumnos for insert to authenticated with check (true);
-create policy "alumnos_update" on public.alumnos for update to authenticated using (true) with check (true);
-create policy "alumnos_delete" on public.alumnos for delete to authenticated using (true);
+create policy "alumnos_select" on public.alumnos for select to authenticated
+  using ((select auth.uid()) = created_by);
+create policy "alumnos_insert" on public.alumnos for insert to authenticated
+  with check ((select auth.uid()) = created_by);
+create policy "alumnos_update" on public.alumnos for update to authenticated
+  using ((select auth.uid()) = created_by) with check ((select auth.uid()) = created_by);
+create policy "alumnos_delete" on public.alumnos for delete to authenticated
+  using ((select auth.uid()) = created_by);
 
 -- ============================================================
 -- 2. Planes de entrenamiento
@@ -50,7 +55,8 @@ create table public.training_plans (
 
 alter table public.training_plans enable row level security;
 
-create policy "plans_select" on public.training_plans for select to authenticated using (true);
+create policy "plans_select" on public.training_plans for select to authenticated
+  using ((select auth.uid()) = created_by);
 create policy "plans_insert" on public.training_plans for insert to authenticated
   with check ((select auth.uid()) = created_by);
 create policy "plans_update" on public.training_plans for update to authenticated
@@ -77,7 +83,10 @@ create table public.training_plan_weeks (
 
 alter table public.training_plan_weeks enable row level security;
 
-create policy "weeks_select" on public.training_plan_weeks for select to authenticated using (true);
+create policy "weeks_select" on public.training_plan_weeks for select to authenticated
+  using (
+    exists (select 1 from public.training_plans where id = plan_id and created_by = (select auth.uid()))
+  );
 create policy "weeks_insert" on public.training_plan_weeks for insert to authenticated
   with check (
     exists (select 1 from public.training_plans where id = plan_id and created_by = (select auth.uid()))
@@ -104,67 +113,18 @@ create table public.payments (
 
 alter table public.payments enable row level security;
 
-create policy "payments_select" on public.payments for select to authenticated using (true);
-create policy "payments_insert" on public.payments for insert to authenticated with check (true);
-create policy "payments_update" on public.payments for update to authenticated using (true) with check (true);
-create policy "payments_delete" on public.payments for delete to authenticated using (true);
+create policy "payments_select" on public.payments for select to authenticated
+  using (exists (select 1 from public.alumnos where id = alumno_id and created_by = (select auth.uid())));
+create policy "payments_insert" on public.payments for insert to authenticated
+  with check (exists (select 1 from public.alumnos where id = alumno_id and created_by = (select auth.uid())));
+create policy "payments_update" on public.payments for update to authenticated
+  using (exists (select 1 from public.alumnos where id = alumno_id and created_by = (select auth.uid())))
+  with check (exists (select 1 from public.alumnos where id = alumno_id and created_by = (select auth.uid())));
+create policy "payments_delete" on public.payments for delete to authenticated
+  using (exists (select 1 from public.alumnos where id = alumno_id and created_by = (select auth.uid())));
 
 -- ============================================================
 -- 5. Usuario admin
+-- Crear desde: Supabase Dashboard → Authentication → Users → Add user
+-- Tildar "Auto Confirm User"
 -- ============================================================
-do $$
-declare
-  new_user_id uuid := gen_random_uuid();
-begin
-  -- Eliminar si ya existe
-  delete from auth.identities where provider_id = 'diegosimon@gmail.com';
-  delete from auth.users where email = 'diegosimon@gmail.com';
-
-  insert into auth.users (
-    id,
-    instance_id,
-    aud,
-    role,
-    email,
-    encrypted_password,
-    email_confirmed_at,
-    created_at,
-    updated_at,
-    raw_app_meta_data,
-    raw_user_meta_data,
-    is_super_admin
-  ) values (
-    new_user_id,
-    '00000000-0000-0000-0000-000000000000',
-    'authenticated',
-    'authenticated',
-    'diegosimon@gmail.com',
-    crypt('DiegoSimon2026!', gen_salt('bf')),
-    now(),
-    now(),
-    now(),
-    '{"provider":"email","providers":["email"]}',
-    '{}',
-    false
-  );
-
-  insert into auth.identities (
-    id,
-    user_id,
-    provider_id,
-    identity_data,
-    provider,
-    last_sign_in_at,
-    created_at,
-    updated_at
-  ) values (
-    new_user_id,
-    new_user_id,
-    'diegosimon@gmail.com',
-    jsonb_build_object('sub', new_user_id::text, 'email', 'diegosimon@gmail.com'),
-    'email',
-    now(),
-    now(),
-    now()
-  );
-end $$;

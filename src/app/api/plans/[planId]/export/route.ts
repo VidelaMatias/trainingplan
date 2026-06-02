@@ -23,6 +23,7 @@ export async function GET(
     .from('training_plans')
     .select('*, alumnos(first_name, last_name, rhythm_notes), training_plan_weeks(*)')
     .eq('id', planId)
+    .eq('created_by', user.id)
     .single()
 
   if (error || !plan) return NextResponse.json({ error: 'Not found' }, { status: 404 })

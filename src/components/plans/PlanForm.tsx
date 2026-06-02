@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, memo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import Spinner from '@/components/ui/Spinner'
 import {
   TrainingPlan, TrainingPlanWeek, DAYS, DayKey,
   getNextMonday, addWeeks, emptyWeek,
@@ -31,26 +32,28 @@ export default function PlanForm({ clientId, clientRhythmNotes, plan }: PlanForm
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  function updateDay(weekIdx: number, day: DayKey, value: string) {
+  const updateDay = useCallback((weekIdx: number, day: DayKey, value: string) => {
     setWeeks((prev) =>
       prev.map((w, i) => (i === weekIdx ? { ...w, [day]: value || null } : w))
     )
-  }
+  }, [])
 
-  function addWeek() {
-    const last = weeks[weeks.length - 1]
-    const nextStart = addWeeks(last.week_start, 1)
-    setWeeks((prev) => [...prev, emptyWeek(nextStart, prev.length + 1)])
-  }
+  const addWeek = useCallback(() => {
+    setWeeks((prev) => {
+      const last = prev[prev.length - 1]
+      const nextStart = addWeeks(last.week_start, 1)
+      return [...prev, emptyWeek(nextStart, prev.length + 1)]
+    })
+  }, [])
 
-  function removeWeek(idx: number) {
-    if (weeks.length === 1) return
-    setWeeks((prev) =>
-      prev
+  const removeWeek = useCallback((idx: number) => {
+    setWeeks((prev) => {
+      if (prev.length === 1) return prev
+      return prev
         .filter((_, i) => i !== idx)
         .map((w, i) => ({ ...w, week_number: i + 1 }))
-    )
-  }
+    })
+  }, [])
 
   async function submitAction(formData: FormData) {
     setLoading(true)
@@ -120,12 +123,12 @@ export default function PlanForm({ clientId, clientRhythmNotes, plan }: PlanForm
         <div className="space-y-6">
           {weeks.map((week, weekIdx) => (
             <WeekEditor
-              key={weekIdx}
+              key={week.week_start}
               week={week}
               weekIdx={weekIdx}
               canRemove={weeks.length > 1}
-              onUpdateDay={(day, val) => updateDay(weekIdx, day, val)}
-              onRemove={() => removeWeek(weekIdx)}
+              onUpdateDay={updateDay}
+              onRemove={removeWeek}
             />
           ))}
         </div>
@@ -157,8 +160,9 @@ export default function PlanForm({ clientId, clientRhythmNotes, plan }: PlanForm
         <button
           type="submit"
           disabled={loading}
-          className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-lg transition"
+          className="inline-flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-lg transition"
         >
+          {loading && <Spinner />}
           {loading ? 'Guardando...' : isEdit ? 'Guardar cambios' : 'Crear plan'}
         </button>
         <button
@@ -177,11 +181,11 @@ interface WeekEditorProps {
   week: TrainingPlanWeek
   weekIdx: number
   canRemove: boolean
-  onUpdateDay: (day: DayKey, val: string) => void
-  onRemove: () => void
+  onUpdateDay: (weekIdx: number, day: DayKey, val: string) => void
+  onRemove: (weekIdx: number) => void
 }
 
-function WeekEditor({ week, weekIdx, canRemove, onUpdateDay, onRemove }: WeekEditorProps) {
+const WeekEditor = memo(function WeekEditor({ week, weekIdx, canRemove, onUpdateDay, onRemove }: WeekEditorProps) {
   const monday = new Date(week.week_start + 'T12:00:00')
   const sunday = new Date(week.week_start + 'T12:00:00')
   sunday.setDate(sunday.getDate() + 6)
@@ -204,7 +208,7 @@ function WeekEditor({ week, weekIdx, canRemove, onUpdateDay, onRemove }: WeekEdi
         {canRemove && (
           <button
             type="button"
-            onClick={onRemove}
+            onClick={() => onRemove(weekIdx)}
             className="text-slate-500 hover:text-red-400 transition"
             title="Eliminar semana"
           >
@@ -225,7 +229,7 @@ function WeekEditor({ week, weekIdx, canRemove, onUpdateDay, onRemove }: WeekEdi
               </div>
               <textarea
                 value={week[day.key] ?? ''}
-                onChange={(e) => onUpdateDay(day.key, e.target.value)}
+                onChange={(e) => onUpdateDay(weekIdx, day.key, e.target.value)}
                 placeholder="—"
                 rows={4}
                 className="flex-1 w-full p-2 text-xs text-slate-700 placeholder-slate-300 border-0 border-b border-slate-100 resize-none focus:outline-none focus:bg-blue-50 transition"
@@ -236,4 +240,4 @@ function WeekEditor({ week, weekIdx, canRemove, onUpdateDay, onRemove }: WeekEdi
       </div>
     </div>
   )
-}
+})

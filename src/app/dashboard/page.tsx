@@ -9,15 +9,14 @@ export default async function DashboardPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [clients, payments] = await Promise.all([
+  const [clients, payments, { data: plans }] = await Promise.all([
     getClients(),
     getAllPayments(),
+    supabase
+      .from('training_plans')
+      .select('id, alumno_id, start_date, end_date, title, active, alumnos(first_name, last_name)')
+      .order('start_date', { ascending: false }),
   ])
-
-  const { data: plans } = await supabase
-    .from('training_plans')
-    .select('id, alumno_id, start_date, end_date, title, active, alumnos(first_name, last_name)')
-    .order('start_date', { ascending: false })
 
   const activePlans = (plans ?? []).filter((p) => getPlanStatus(p as any) === 'active')
   const expiringThisWeek = activePlans.filter((p) => {
