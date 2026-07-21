@@ -1,27 +1,29 @@
 import Link from 'next/link'
-import ClientForm from '@/components/clients/ClientForm'
+import { ChevronLeft } from 'lucide-react'
+
+import { Card } from '@/components/ui/card'
+import { ClientForm } from '@/modules/clients/components/ClientForm'
+import { createClientAction } from '@/modules/clients/actions'
 
 export default function NewClientPage() {
   return (
     <div className="max-w-2xl">
-      <div className="flex items-center gap-3 mb-6">
+      <div className="mb-6 flex items-center gap-3">
         <Link
           href="/dashboard/clients"
-          className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition"
+          className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-muted hover:text-secondary-foreground"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
+          <ChevronLeft className="size-5" />
         </Link>
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Nuevo alumno</h1>
-          <p className="text-slate-500 text-sm mt-0.5">Completá los datos del alumno</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">Completá los datos del alumno</p>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 p-6">
-        <ClientForm />
-      </div>
+      <Card className="p-6">
+        <ClientForm action={createClientAction} />
+      </Card>
     </div>
   )
 }

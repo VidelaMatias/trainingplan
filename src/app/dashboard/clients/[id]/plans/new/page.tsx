@@ -1,7 +1,11 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
-import PlanForm from '@/components/plans/PlanForm'
+import { ChevronLeft } from 'lucide-react'
+
+import { Card } from '@/components/ui/card'
+import { PlanForm } from '@/modules/plans/components/PlanForm'
+import { getClientById } from '@/modules/clients/queries'
+import { createPlanAction } from '@/modules/plans/actions'
 
 interface NewPlanPageProps {
   params: Promise<{ id: string }>
@@ -9,38 +13,33 @@ interface NewPlanPageProps {
 
 export default async function NewPlanPage({ params }: NewPlanPageProps) {
   const { id } = await params
-  const supabase = await createClient()
-
-  const { data: client, error } = await supabase
-    .from('alumnos')
-    .select('first_name, last_name, rhythm_notes')
-    .eq('id', id)
-    .single()
-
-  if (error || !client) notFound()
+  const client = await getClientById(id)
+  if (!client) notFound()
 
   return (
     <div className="max-w-3xl">
-      <div className="flex items-center gap-3 mb-6">
+      <div className="mb-6 flex items-center gap-3">
         <Link
           href={`/dashboard/clients/${id}`}
-          className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition"
+          className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-muted hover:text-secondary-foreground"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
+          <ChevronLeft className="size-5" />
         </Link>
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Nuevo plan</h1>
-          <p className="text-slate-500 text-sm mt-0.5">
+          <p className="mt-0.5 text-sm text-muted-foreground">
             {client.first_name} {client.last_name}
           </p>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 p-6">
-        <PlanForm clientId={id} clientRhythmNotes={client.rhythm_notes} />
-      </div>
+      <Card className="p-6">
+        <PlanForm
+          action={createPlanAction.bind(null, id)}
+          cancelHref={`/dashboard/clients/${id}`}
+          clientRhythmNotes={client.rhythm_notes}
+        />
+      </Card>
     </div>
   )
 }

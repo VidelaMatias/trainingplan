@@ -2,7 +2,7 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #0f172a; /* slate-900 */
 }
 
 @theme inline {
@@ -10,14 +10,31 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* Semantic design tokens. Values mirror the app's existing blue/slate palette
+     so the UI primitives (Button, Input, Badge…) render identically while giving
+     the codebase a single source of truth for color. */
+  --color-card: #ffffff;
+  --color-card-foreground: #0f172a; /* slate-900 */
+  --color-primary: #2563eb; /* blue-600 */
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #f1f5f9; /* slate-100 */
+  --color-secondary-foreground: #334155; /* slate-700 */
+  --color-muted: #f1f5f9; /* slate-100 */
+  --color-muted-foreground: #64748b; /* slate-500 */
+  --color-accent: #eff6ff; /* blue-50 */
+  --color-accent-foreground: #1d4ed8; /* blue-700 */
+  --color-destructive: #dc2626; /* red-600 */
+  --color-destructive-foreground: #ffffff;
+  --color-border: #e2e8f0; /* slate-200 */
+  --color-input: #cbd5e1; /* slate-300 */
+  --color-ring: #3b82f6; /* blue-500 */
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+/* Light-only design: every surface is a hardcoded white card on slate. There is
+   no dark theme, so we intentionally do NOT flip these tokens on
+   prefers-color-scheme: dark — doing so turned token-based text near-white on
+   the white cards. */
 
 body {
   background: var(--background);

@@ -1,7 +1,12 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
-import PlanForm from '@/components/plans/PlanForm'
+import { ChevronLeft } from 'lucide-react'
+
+import { Card } from '@/components/ui/card'
+import { PlanForm } from '@/modules/plans/components/PlanForm'
+import { getClientById } from '@/modules/clients/queries'
+import { getPlan } from '@/modules/plans/queries'
+import { updatePlanAction } from '@/modules/plans/actions'
 
 interface EditPlanPageProps {
   params: Promise<{ id: string; planId: string }>
@@ -9,37 +14,35 @@ interface EditPlanPageProps {
 
 export default async function EditPlanPage({ params }: EditPlanPageProps) {
   const { id, planId } = await params
-  const supabase = await createClient()
-
-  const [{ data: client }, { data: plan }] = await Promise.all([
-    supabase.from('alumnos').select('first_name, last_name, rhythm_notes').eq('id', id).single(),
-    supabase.from('training_plans').select('*, training_plan_weeks(*)').eq('id', planId).single(),
-  ])
+  const [client, plan] = await Promise.all([getClientById(id), getPlan(planId)])
 
   if (!client || !plan) notFound()
 
   return (
     <div className="max-w-3xl">
-      <div className="flex items-center gap-3 mb-6">
+      <div className="mb-6 flex items-center gap-3">
         <Link
           href={`/dashboard/clients/${id}`}
-          className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition"
+          className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-muted hover:text-secondary-foreground"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
+          <ChevronLeft className="size-5" />
         </Link>
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Editar plan</h1>
-          <p className="text-slate-500 text-sm mt-0.5">
+          <p className="mt-0.5 text-sm text-muted-foreground">
             {client.first_name} {client.last_name} · {plan.title}
           </p>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 p-6">
-        <PlanForm clientId={id} clientRhythmNotes={client.rhythm_notes} plan={plan} />
-      </div>
+      <Card className="p-6">
+        <PlanForm
+          action={updatePlanAction.bind(null, planId, id)}
+          cancelHref={`/dashboard/clients/${id}`}
+          clientRhythmNotes={client.rhythm_notes}
+          plan={plan}
+        />
+      </Card>
     </div>
   )
 }

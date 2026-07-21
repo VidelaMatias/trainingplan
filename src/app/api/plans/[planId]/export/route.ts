@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import ExcelJS from 'exceljs'
 import { createClient } from '@/lib/supabase/server'
-import { DAYS } from '@/types/training-plan'
+import { getPlanForExport } from '@/modules/plans/queries'
+import { DAYS } from '@/types/constants'
 
-const RED      = 'FFCC0000'
-const WHITE    = 'FFFFFFFF'
-const COL_W    = 20
-const N_COLS   = 7
-
+// Mirrors the coach's own spreadsheet: red reference paces over a red rule, then
+// one blue-ruled table per week with red day headers and blue session text.
+const RED        = 'FFFF0000'
+const BLUE_TEXT  = 'FF0000CC'
+const BLUE_LINE  = 'FF4472C4'
+const FONT       = 'Arial'
+const COL_W      = 16
+const N_COLS     = 7
 
 export async function GET(
   _req: NextRequest,
@@ -19,17 +23,15 @@ export async function GET(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: plan, error } = await supabase
-    .from('training_plans')
-    .select('*, alumnos(first_name, last_name, rhythm_notes), training_plan_weeks(*)')
-    .eq('id', planId)
-    .eq('created_by', user.id)
-    .single()
+  const plan = await getPlanForExport(planId, user.id)
+  if (!plan) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  if (error || !plan) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  // The alumnos embed is filtered by its own RLS: it comes back null when the
+  // plan points at someone else's alumno. Treat that as not-found rather than
+  // dereferencing null further down.
+  if (!plan.alumnos) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const weeks = [...((plan.training_plan_weeks as any[]) ?? [])]
-    .sort((a, b) => a.week_number - b.week_number)
+  const weeks = [...(plan.training_plan_weeks ?? [])].sort((a, b) => a.week_number - b.week_number)
 
   // ── Workbook ──────────────────────────────────────────────
   const wb = new ExcelJS.Workbook()
@@ -45,7 +47,7 @@ export async function GET(
   const nameRow = ws.addRow([clientName])
   ws.mergeCells(nameRow.number, 1, nameRow.number, N_COLS)
   applyCell(nameRow.getCell(1), {
-    font: { name: 'Arial', bold: true, italic: true, size: 18, color: { argb: '00000000' } },
+    font: { name: FONT, bold: true, italic: true, size: 18, color: { argb: '00000000' } },
     alignment: { horizontal: 'left', vertical: 'middle' },
   })
   nameRow.height = 30
@@ -59,11 +61,21 @@ export async function GET(
       const row = ws.addRow([line])
       ws.mergeCells(row.number, 1, row.number, N_COLS)
       applyCell(row.getCell(1), {
-        font: { name: 'Arial', italic: true, underline: true, size: 10, color: { argb: RED } },
+        font: { name: FONT, bold: true, italic: true, underline: true, size: 10, color: { argb: RED } },
         alignment: { horizontal: 'left', wrapText: false },
       })
       row.height = 16
     }
+
+    // Solid red rule closing the reference-pace block.
+    const ruleRow = ws.addRow([])
+    ruleRow.height = 10
+    for (let c = 1; c <= N_COLS; c++) {
+      applyCell(ruleRow.getCell(c), {
+        fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: RED } },
+      })
+    }
+
     ws.addRow([])
   }
 
@@ -76,22 +88,21 @@ export async function GET(
     headRow.height = 18
     for (let c = 1; c <= N_COLS; c++) {
       applyCell(headRow.getCell(c), {
-        font: { name: 'Arial', bold: true, size: 10, color: { argb: WHITE } },
-        fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: RED } },
+        font: { name: FONT, bold: true, size: 10, color: { argb: RED } },
         alignment: { horizontal: 'center', vertical: 'middle' },
-        border: thinBorder(RED),
+        border: thinBorder(BLUE_LINE),
       })
     }
 
     // Content row
-    const content = DAYS.map((d) => (week as any)[d.key] ?? '')
+    const content = DAYS.map((d) => week[d.key] ?? '')
     const contentRow = ws.addRow(content)
-    contentRow.height = 90
+    contentRow.height = 75
     for (let c = 1; c <= N_COLS; c++) {
       applyCell(contentRow.getCell(c), {
-        font: { name: 'Arial', size: 9 },
+        font: { name: FONT, bold: true, size: 9, color: { argb: BLUE_TEXT } },
         alignment: { horizontal: 'center', vertical: 'middle', wrapText: true },
-        border: thinBorder('FFD0D0D0'),
+        border: thinBorder(BLUE_LINE),
       })
     }
 
