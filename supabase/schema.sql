@@ -124,7 +124,31 @@ create policy "payments_delete" on public.payments for delete to authenticated
   using (exists (select 1 from public.alumnos where id = alumno_id and created_by = (select auth.uid())));
 
 -- ============================================================
--- 5. Usuario admin
+-- 5. Índices
+-- Postgres no indexa las foreign keys solo. Sin esto, las políticas RLS
+-- (que corren un `exists (...)` por fila) y todos los embeds resuelven con
+-- sequential scan. Ver add_indexes.sql para el detalle.
+-- payments(alumno_id) ya queda cubierto por unique(alumno_id, year, month).
+-- ============================================================
+create index if not exists alumnos_created_by_idx        on public.alumnos (created_by);
+create index if not exists training_plans_alumno_id_idx  on public.training_plans (alumno_id);
+create index if not exists training_plans_created_by_idx on public.training_plans (created_by);
+create index if not exists training_plan_weeks_plan_id_idx on public.training_plan_weeks (plan_id);
+
+-- Sin semanas duplicadas dentro de un plan.
+create unique index if not exists training_plan_weeks_plan_week_uniq
+  on public.training_plan_weeks (plan_id, week_number);
+
+-- ============================================================
+-- 6. Funciones de escritura atómica (REQUERIDAS por la app)
+-- Las Server Actions de planes escriben plan + semanas vía estas funciones,
+-- para que un fallo a mitad de camino no deje el plan sin semanas.
+-- El cuerpo vive en add_plan_rpc.sql: pegar y correr ESE archivo a
+-- continuación de éste. Sin él, crear o editar planes falla.
+-- ============================================================
+
+-- ============================================================
+-- 7. Usuario admin
 -- Crear desde: Supabase Dashboard → Authentication → Users → Add user
 -- Tildar "Auto Confirm User"
 -- ============================================================

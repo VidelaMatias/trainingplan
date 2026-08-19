@@ -1,4 +1,4 @@
-import { Home, Users, type LucideIcon } from 'lucide-react'
+import { Home, UserCog, Users, type LucideIcon } from 'lucide-react'
 
 export interface NavItem {
   href: string
@@ -13,6 +13,7 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard', label: 'Inicio', icon: Home, exact: true },
   { href: '/dashboard/clients', label: 'Alumnos', icon: Users, exact: false },
+  { href: '/dashboard/account', label: 'Cuenta', icon: UserCog, exact: true },
 ]
 
 export function isNavActive(pathname: string, item: NavItem): boolean {

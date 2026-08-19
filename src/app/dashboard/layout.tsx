@@ -1,12 +1,11 @@
 import { redirect } from 'next/navigation'
 import { Zap } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
+import { getCurrentUser } from '@/lib/auth/guards'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { MobileNav } from '@/components/layout/MobileNav'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getCurrentUser()
 
   if (!user) redirect('/login')
 

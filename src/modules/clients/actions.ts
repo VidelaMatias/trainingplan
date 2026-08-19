@@ -37,6 +37,7 @@ export async function createClientAction(
 
   if (error) return { data: null, error: 'No se pudo crear el alumno' }
 
+  revalidatePath('/dashboard')
   revalidatePath('/dashboard/clients')
   redirect('/dashboard/clients')
 }
@@ -65,6 +66,7 @@ export async function updateClientAction(
   const { error } = await supabase.from('alumnos').update(parsed.data).eq('id', id)
   if (error) return { data: null, error: 'No se pudo actualizar el alumno' }
 
+  revalidatePath('/dashboard')
   revalidatePath('/dashboard/clients')
   revalidatePath(`/dashboard/clients/${id}`)
   redirect('/dashboard/clients')
@@ -90,7 +92,11 @@ export async function toggleClientActive(
   const { error } = await supabase.from('alumnos').update({ active }).eq('id', id)
   if (error) return { data: null, error: 'No se pudo actualizar el alumno' }
 
+  // The dashboard counts only active alumnos and derives debtors from them, so
+  // it goes stale on this toggle just as much as the list does.
+  revalidatePath('/dashboard')
   revalidatePath('/dashboard/clients')
+  revalidatePath(`/dashboard/clients/${id}`)
   return { data: null, error: null }
 }
 
@@ -111,6 +117,7 @@ export async function deleteClientAction(id: string): Promise<ActionResult<null>
   const { error } = await supabase.from('alumnos').delete().eq('id', id)
   if (error) return { data: null, error: 'No se pudo eliminar el alumno' }
 
+  revalidatePath('/dashboard')
   revalidatePath('/dashboard/clients')
   return { data: null, error: null }
 }

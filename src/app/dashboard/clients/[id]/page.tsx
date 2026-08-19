@@ -9,8 +9,8 @@ import { cn } from '@/lib/utils'
 import { getClientById } from '@/modules/clients/queries'
 import { getClientPlans } from '@/modules/plans/queries'
 import { getPlanStatus } from '@/modules/plans/utils'
-import { getAllPayments } from '@/modules/payments/queries'
-import { getAllMonthsWithStatus } from '@/modules/payments/utils'
+import { getPaymentsForClient } from '@/modules/payments/queries'
+import { buildPaidIndex, getAllMonthsWithStatus } from '@/modules/payments/utils'
 import { PaymentToggle } from '@/modules/payments/components/PaymentToggle'
 import { PlanCard } from '@/modules/plans/components/PlanCard'
 import { PLAN_STATUS } from '@/types/constants'
@@ -21,12 +21,18 @@ interface ClientDetailPageProps {
 
 export default async function ClientDetailPage({ params }: ClientDetailPageProps) {
   const { id } = await params
-  const client = await getClientById(id)
+
+  // All three reads are independent — awaiting the client first cost an extra
+  // round trip of pure dead time on every visit.
+  const [client, plans, payments] = await Promise.all([
+    getClientById(id),
+    getClientPlans(id),
+    getPaymentsForClient(id),
+  ])
   if (!client) notFound()
 
-  const [plans, allPayments] = await Promise.all([getClientPlans(id), getAllPayments()])
   const activePlan = plans.find((p) => getPlanStatus(p) === PLAN_STATUS.ACTIVE)
-  const monthsWithStatus = getAllMonthsWithStatus(client.created_at, id, allPayments)
+  const monthsWithStatus = getAllMonthsWithStatus(client.created_at, id, buildPaidIndex(payments))
 
   return (
     <div className="max-w-3xl">

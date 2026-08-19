@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronDown, FileSpreadsheet, Pencil, Trash2 } from 'lucide-react'
+import { AlertCircle, ChevronDown, FileSpreadsheet, Pencil, Trash2 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -12,11 +12,12 @@ import { cn } from '@/lib/utils'
 import { DAYS } from '@/types/constants'
 import { PLAN_STATUS, PLAN_STATUS_META } from '@/types/constants'
 import { getPlanStatus, getWeekDates } from '@/modules/plans/utils'
-import { deletePlanAction } from '@/modules/plans/actions'
-import type { PlanWithWeeks, TrainingPlanWeek } from '@/types'
+import { deletePlanAction, fetchPlanWeeks } from '@/modules/plans/actions'
+import type { PlanListItem } from '@/modules/plans/queries'
+import type { TrainingPlanWeek } from '@/types'
 
 interface PlanCardProps {
-  plan: PlanWithWeeks
+  plan: PlanListItem
   clientId: string
   clientRhythmNotes?: string | null
 }
@@ -27,28 +28,82 @@ export function PlanCard({ plan, clientId, clientRhythmNotes }: PlanCardProps) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [loadingDelete, setLoadingDelete] = useState(false)
   const [loadingExport, setLoadingExport] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // Week bodies arrive only on first expand; null means "not fetched yet".
+  const [weeks, setWeeks] = useState<TrainingPlanWeek[] | null>(null)
+  const [loadingWeeks, setLoadingWeeks] = useState(false)
+  // A ref, not the loading flag: a state update is not visible to a second
+  // click within the same tick, so two fast expands would both fire a fetch.
+  const weeksRequested = useRef(false)
 
   const status = getPlanStatus(plan)
   const meta = PLAN_STATUS_META[status]
-  const weeks = [...(plan.training_plan_weeks ?? [])].sort((a, b) => a.week_number - b.week_number)
+
+  async function toggleExpanded() {
+    const next = !expanded
+    setExpanded(next)
+    if (!next || weeksRequested.current) return
+
+    weeksRequested.current = true
+    setLoadingWeeks(true)
+    setError(null)
+    const result = await fetchPlanWeeks(plan.id)
+    setLoadingWeeks(false)
+
+    if (result.error) {
+      setError(result.error)
+      weeksRequested.current = false // let the next expand retry
+      return
+    }
+    setWeeks(result.data)
+  }
 
   async function handleDelete() {
     setLoadingDelete(true)
-    await deletePlanAction(plan.id, clientId)
+    setError(null)
+    const result = await deletePlanAction(plan.id, clientId)
+    // On success the row disappears with the revalidation; on failure the
+    // button used to spin forever with the error silently discarded.
+    if (result.error) {
+      setError(result.error)
+      setLoadingDelete(false)
+      setConfirmDelete(false)
+    }
   }
 
   async function handleExport() {
     setLoadingExport(true)
+    setError(null)
+    let url: string | null = null
     try {
       const res = await fetch(`/api/plans/${plan.id}/export`)
+      // Without this the JSON error body from a 401/404 was wrapped in a blob
+      // and saved as a .xlsx the coach could not open.
+      if (!res.ok) {
+        setError(
+          res.status === 401
+            ? 'Tu sesión expiró. Recargá la página e intentá de nuevo.'
+            : 'No se pudo generar el Excel.',
+        )
+        return
+      }
+
       const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
+      url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `plan-${plan.title.toLowerCase().replace(/\s+/g, '-')}.xlsx`
+      a.download = filenameFrom(res) ?? `plan-${slugify(plan.title)}.xlsx`
+      // Firefox only follows a click on a node that is in the document.
+      document.body.appendChild(a)
       a.click()
-      URL.revokeObjectURL(url)
+      a.remove()
+    } catch {
+      setError('No se pudo generar el Excel.')
     } finally {
+      // Revoking synchronously after click() can race the download starting.
+      const created = url
+      if (created) setTimeout(() => URL.revokeObjectURL(created), 10_000)
       setLoadingExport(false)
     }
   }
@@ -61,7 +116,7 @@ export function PlanCard({ plan, clientId, clientRhythmNotes }: PlanCardProps) {
             <h3 className="truncate font-semibold text-card-foreground">{plan.title}</h3>
             <Badge variant={meta.variant}>{meta.label}</Badge>
             <span className="text-xs text-muted-foreground">
-              {weeks.length} semana{weeks.length !== 1 ? 's' : ''}
+              {plan.week_count} semana{plan.week_count !== 1 ? 's' : ''}
             </span>
           </div>
           <p className="mt-0.5 text-sm text-muted-foreground">
@@ -74,7 +129,7 @@ export function PlanCard({ plan, clientId, clientRhythmNotes }: PlanCardProps) {
             variant="ghost"
             size="icon-sm"
             title={expanded ? 'Cerrar' : 'Ver plan'}
-            onClick={() => setExpanded((v) => !v)}
+            onClick={toggleExpanded}
             className="text-muted-foreground"
           >
             <ChevronDown className={cn('transition-transform', expanded && 'rotate-180')} />
@@ -130,6 +185,13 @@ export function PlanCard({ plan, clientId, clientRhythmNotes }: PlanCardProps) {
         </div>
       </div>
 
+      {error && (
+        <p className="flex items-center gap-2 border-t border-red-100 bg-red-50 px-5 py-2.5 text-xs text-destructive">
+          <AlertCircle className="size-3.5 shrink-0" />
+          {error}
+        </p>
+      )}
+
       {expanded && (
         <div className="border-t border-slate-100">
           {clientRhythmNotes && (
@@ -150,18 +212,47 @@ export function PlanCard({ plan, clientId, clientRhythmNotes }: PlanCardProps) {
             </div>
           )}
 
-          {weeks.length === 0 ? (
-            <p className="px-5 py-4 text-sm italic text-muted-foreground">Sin semanas cargadas.</p>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {weeks.map((week) => (
-                <WeekView key={week.week_number} week={week} startDate={plan.start_date} />
-              ))}
-            </div>
-          )}
+          <PlanWeeks weeks={weeks} loading={loadingWeeks} startDate={plan.start_date} />
         </div>
       )}
     </Card>
+  )
+}
+
+// Three states, because the week bodies are fetched on expand rather than
+// shipped with the page: still loading, loaded-but-empty, and loaded.
+function PlanWeeks({
+  weeks,
+  loading,
+  startDate,
+}: {
+  weeks: TrainingPlanWeek[] | null
+  loading: boolean
+  startDate: string
+}) {
+  if (loading) {
+    return (
+      <p className="flex items-center gap-2 px-5 py-4 text-sm text-muted-foreground">
+        <Spinner className="size-4" />
+        Cargando semanas...
+      </p>
+    )
+  }
+
+  // Null with nothing in flight means the fetch failed; the error banner above
+  // already says so, so this renders nothing rather than a second message.
+  if (!weeks) return null
+
+  if (weeks.length === 0) {
+    return <p className="px-5 py-4 text-sm italic text-muted-foreground">Sin semanas cargadas.</p>
+  }
+
+  return (
+    <div className="divide-y divide-slate-100">
+      {weeks.map((week) => (
+        <WeekView key={week.week_number} week={week} startDate={startDate} />
+      ))}
+    </div>
   )
 }
 
@@ -205,6 +296,19 @@ function WeekView({ week, startDate }: { week: TrainingPlanWeek; startDate: stri
       </div>
     </div>
   )
+}
+
+// Mirrors the slug the export route builds, so a title with characters that are
+// illegal in a filename (a slash, say) can't produce a broken download name.
+function slugify(title: string) {
+  return title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') || 'entrenamiento'
+}
+
+// The route already names the file in Content-Disposition; prefer it over
+// recomputing the name here so the two can't drift.
+function filenameFrom(res: Response): string | null {
+  const match = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '')
+  return match?.[1] ?? null
 }
 
 function fmtShort(iso: string) {

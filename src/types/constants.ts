@@ -3,6 +3,13 @@
 
 import type { BadgeVariant } from '@/components/ui/badge'
 
+// Todas las fechas del dominio (inicio/fin de plan, meses de cuota) son fechas
+// de calendario en la zona del entrenador, no instantes. El servidor corre en
+// UTC, así que "hoy" SIEMPRE se deriva de esta zona y nunca del reloj local del
+// proceso — si no, entre las 21:00 y las 24:00 de Argentina el servidor ya pasó
+// de día y los planes vigentes se muestran vencidos.
+export const APP_TIMEZONE = 'America/Argentina/Buenos_Aires'
+
 export const DAYS = [
   { key: 'monday' as const, label: 'Lunes' },
   { key: 'tuesday' as const, label: 'Martes' },

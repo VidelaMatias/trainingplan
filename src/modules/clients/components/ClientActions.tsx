@@ -10,27 +10,44 @@ import { cn } from '@/lib/utils'
 import { deleteClientAction, toggleClientActive } from '@/modules/clients/actions'
 import type { Client } from '@/types'
 
-export function ClientActions({ client }: { client: Client }) {
+// Only the two fields this component actually reads, so the client list can
+// keep fetching a narrow row instead of every column of `alumnos`.
+type ClientActionsTarget = Pick<Client, 'id' | 'active'>
+
+export function ClientActions({ client }: { client: ClientActionsTarget }) {
   const router = useRouter()
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [togglePending, startToggle] = useTransition()
   const [deletePending, startDelete] = useTransition()
 
   function handleToggle() {
+    setError(null)
     startToggle(async () => {
-      await toggleClientActive(client.id, !client.active)
+      const result = await toggleClientActive(client.id, !client.active)
+      if (result.error) setError(result.error)
     })
   }
 
   function handleDelete() {
+    setError(null)
     startDelete(async () => {
       const result = await deleteClientAction(client.id)
-      if (!result.error) setConfirmDelete(false)
+      if (result.error) setError(result.error)
+      else setConfirmDelete(false)
     })
   }
 
   return (
-    <div className="flex items-center gap-1">
+    <div className="relative flex items-center gap-1">
+      {error && (
+        <span
+          role="alert"
+          className="absolute right-0 top-full z-10 mt-1 whitespace-nowrap rounded-md bg-destructive px-2 py-1 text-xs text-white shadow-lg"
+        >
+          {error}
+        </span>
+      )}
       <Button
         variant="ghost"
         size="icon-sm"

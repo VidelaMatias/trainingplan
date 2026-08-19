@@ -4,9 +4,11 @@ import { AlertTriangle, CircleDollarSign, Plus, Users } from 'lucide-react'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/server'
+import { todayISO } from '@/lib/date'
+import { getCurrentUser } from '@/lib/auth/guards'
 import { getClients } from '@/modules/clients/queries'
 import { getAllPayments } from '@/modules/payments/queries'
-import { getOwedMonths } from '@/modules/payments/utils'
+import { buildPaidIndex, getOwedMonths } from '@/modules/payments/utils'
 import { getPlanStatus, isExpiringWithin } from '@/modules/plans/utils'
 import { PaymentToggle } from '@/modules/payments/components/PaymentToggle'
 import { PLAN_STATUS } from '@/types/constants'
@@ -21,16 +23,20 @@ interface DashboardPlan {
 
 export default async function DashboardPage() {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
 
-  const [clients, payments, { data: plansData }] = await Promise.all([
+  const [user, clients, payments, { data: plansData }] = await Promise.all([
+    getCurrentUser(),
     getClients(),
     getAllPayments(),
+    // Both tiles below describe plans that are still running or still to come,
+    // so anything already finished is dropped in the database rather than
+    // downloaded and filtered out here — otherwise this grows without bound as
+    // the coach accumulates years of history. `alumno_id` and `active` were
+    // selected but never read (DashboardPlan does not even declare them).
     supabase
       .from('training_plans')
-      .select('id, alumno_id, start_date, end_date, title, active, alumnos(first_name, last_name)')
+      .select('id, start_date, end_date, title, alumnos(first_name, last_name)')
+      .gte('end_date', todayISO())
       .order('start_date', { ascending: false }),
   ])
 
@@ -38,9 +44,12 @@ export default async function DashboardPage() {
   const activePlans = plans.filter((p) => getPlanStatus(p) === PLAN_STATUS.ACTIVE)
   const expiringThisWeek = activePlans.filter((p) => isExpiringWithin(p.end_date, 7))
 
+  // Indexed once and reused across every client, instead of re-scanning the
+  // full payments array per client inside getOwedMonths.
+  const paidIndex = buildPaidIndex(payments)
   const activeClients = clients.filter((c) => c.active)
   const debtors = activeClients
-    .map((c) => ({ client: c, owed: getOwedMonths(c.created_at, c.id, payments) }))
+    .map((c) => ({ client: c, owed: getOwedMonths(c.created_at, c.id, paidIndex) }))
     .filter(({ owed }) => owed.length > 0)
 
   return (

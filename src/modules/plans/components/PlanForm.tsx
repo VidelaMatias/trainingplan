@@ -55,22 +55,37 @@ export function PlanForm({ action, cancelHref, clientRhythmNotes, plan }: PlanFo
   const [contents, setContents] = useState<WeekContent[]>(() => buildInitialContents(plan))
 
   // Week N covers the calendar week N Mondays after the one the plan starts in.
-  // The first week is clamped so days before the start date stay empty.
-  const weeks = useMemo<TrainingPlanWeek[]>(() => {
+  // Only the dates are derived here — the day cells stay untouched so that
+  // editing one week doesn't change the identity of every other week's props
+  // and defeat the memo on WeekEditor.
+  const weekCount = contents.length
+  const weekStarts = useMemo<string[]>(() => {
     const firstMonday = getMondayOf(startDate)
-    return clampWeeksToStart(
-      contents.map((content, i) => ({
-        ...content,
-        week_number: i + 1,
-        week_start: addWeeks(firstMonday, i),
-      })),
-      startDate,
-    )
-  }, [contents, startDate])
+    return Array.from({ length: weekCount }, (_, i) => addWeeks(firstMonday, i))
+  }, [weekCount, startDate])
 
   const updateDay = useCallback((weekIdx: number, day: DayKey, value: string) => {
     setContents((prev) => prev.map((w, i) => (i === weekIdx ? { ...w, [day]: value || null } : w)))
   }, [])
+
+  // Serializing on submit instead of into a hidden field's value: as a render
+  // prop this ran a full JSON.stringify of every week on every keystroke.
+  const handleSubmit = useCallback(
+    (formData: FormData) => {
+      const firstMonday = getMondayOf(startDate)
+      const weeks: TrainingPlanWeek[] = clampWeeksToStart(
+        contents.map((content, i) => ({
+          ...content,
+          week_number: i + 1,
+          week_start: addWeeks(firstMonday, i),
+        })),
+        startDate,
+      )
+      formData.set('weeks', JSON.stringify(weeks))
+      return formAction(formData)
+    },
+    [contents, startDate, formAction],
+  )
 
   const addWeek = useCallback(() => {
     setContents((prev) => [...prev, emptyWeekContent()])
@@ -81,10 +96,7 @@ export function PlanForm({ action, cancelHref, clientRhythmNotes, plan }: PlanFo
   }, [])
 
   return (
-    <form action={formAction} className="space-y-8">
-      {/* Complex week state is carried into FormData via this hidden field. */}
-      <input type="hidden" name="weeks" value={JSON.stringify(weeks)} />
-
+    <form action={handleSubmit} className="space-y-8">
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1">
           <Label htmlFor="title">
@@ -133,7 +145,7 @@ export function PlanForm({ action, cancelHref, clientRhythmNotes, plan }: PlanFo
 
       <div>
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-secondary-foreground">Semanas ({weeks.length})</h3>
+          <h3 className="text-sm font-semibold text-secondary-foreground">Semanas ({weekCount})</h3>
           <Button type="button" variant="ghost" size="sm" onClick={addWeek} className="text-primary hover:bg-accent">
             <Plus />
             Agregar semana
@@ -141,13 +153,14 @@ export function PlanForm({ action, cancelHref, clientRhythmNotes, plan }: PlanFo
         </div>
 
         <div className="space-y-6">
-          {weeks.map((week, weekIdx) => (
+          {contents.map((content, weekIdx) => (
             <WeekEditor
-              key={week.week_start}
-              week={week}
+              key={weekIdx}
+              content={content}
+              weekStart={weekStarts[weekIdx]}
               weekIdx={weekIdx}
               startDate={startDate}
-              canRemove={weeks.length > 1}
+              canRemove={weekCount > 1}
               onUpdateDay={updateDay}
               onRemove={removeWeek}
             />
@@ -188,7 +201,8 @@ export function PlanForm({ action, cancelHref, clientRhythmNotes, plan }: PlanFo
 }
 
 interface WeekEditorProps {
-  week: TrainingPlanWeek
+  content: WeekContent
+  weekStart: string
   weekIdx: number
   startDate: string
   canRemove: boolean
@@ -196,15 +210,19 @@ interface WeekEditorProps {
   onRemove: (weekIdx: number) => void
 }
 
+// Takes the raw week content rather than a derived week object: editing one day
+// used to rebuild every week, so all props changed identity and this memo never
+// actually skipped a render.
 const WeekEditor = memo(function WeekEditor({
-  week,
+  content,
+  weekStart,
   weekIdx,
   startDate,
   canRemove,
   onUpdateDay,
   onRemove,
 }: WeekEditorProps) {
-  const dates = getWeekDates(week.week_start)
+  const dates = getWeekDates(weekStart)
   // A first week the coach started mid-week runs from that day, not from Monday.
   const from = dates[0] < startDate ? startDate : dates[0]
   const isPartial = from !== dates[0]
@@ -248,7 +266,10 @@ const WeekEditor = memo(function WeekEditor({
                   {day.label}
                 </div>
                 <textarea
-                  value={week[day.key] ?? ''}
+                  // Days before the plan starts render empty regardless of what
+                  // was typed earlier: the action clamps them away on save, so
+                  // showing stale text would promise something it won't store.
+                  value={beforeStart ? '' : (content[day.key] ?? '')}
                   onChange={(e) => onUpdateDay(weekIdx, day.key, e.target.value)}
                   placeholder={beforeStart ? '' : '—'}
                   rows={4}

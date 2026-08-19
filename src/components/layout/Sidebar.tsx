@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LogOut, Zap } from 'lucide-react'
+import { Code2, LogOut, Zap } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 import { logout } from '@/modules/auth/actions'
@@ -58,6 +58,18 @@ export function Sidebar({ userEmail }: { userEmail: string }) {
             Cerrar sesión
           </button>
         </form>
+
+        {/* Developer credit badge. The sidebar is a dark surface, so it uses the
+            slate palette directly instead of the semantic tokens (which are
+            light-theme only — see globals.css). */}
+        <div className="mt-3 px-1">
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-slate-700 bg-slate-800/60 px-2.5 py-1.5 text-[11px] font-medium text-slate-400">
+            <Code2 className="size-3 shrink-0" />
+            <span>
+              Desarrollado por <span className="font-semibold text-slate-200">MV Software</span>
+            </span>
+          </span>
+        </div>
       </div>
     </aside>
   )

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useOptimistic, useState, useTransition } from 'react'
 import { Check, X } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
@@ -18,23 +18,30 @@ export function PaymentToggle({
   alumnoId,
   year,
   month,
-  paid: initialPaid,
+  paid: serverPaid,
   monthLabel,
 }: PaymentToggleProps) {
-  const [paid, setPaid] = useState(initialPaid)
+  // useOptimistic, not useState: a useState initializer only runs on mount, so
+  // once the server revalidated to a different value the button kept showing
+  // the stale local one. This resolves back to the server's truth on its own.
+  const [paid, setPaidOptimistic] = useOptimistic(serverPaid)
+  const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
 
   function toggle() {
     startTransition(async () => {
+      setError(null)
       const next = !paid
-      setPaid(next) // optimistic
+      setPaidOptimistic(next)
       const result = await setPayment(alumnoId, year, month, next)
-      if (result.error) setPaid(!next) // revert on failure
+      // No manual revert needed — if the write failed the revalidation never
+      // changed the prop, and the optimistic value falls back to it.
+      if (result.error) setError(result.error)
     })
   }
 
   const label = monthLabel ?? (paid ? 'Pagó' : 'Sin pago')
-  const tooltip = paid ? `Desmarcar ${label} como pagado` : `Marcar ${label} como pagado`
+  const tooltip = error ?? (paid ? `Desmarcar ${label} como pagado` : `Marcar ${label} como pagado`)
 
   return (
     <div className="group/tooltip relative inline-flex">
@@ -47,6 +54,7 @@ export function PaymentToggle({
           paid
             ? 'bg-green-100 text-green-700 hover:bg-green-200'
             : 'bg-red-100 text-red-600 hover:bg-red-200',
+          error && 'ring-2 ring-destructive',
         )}
       >
         {paid ? <Check className="size-3 shrink-0" /> : <X className="size-3 shrink-0" />}
