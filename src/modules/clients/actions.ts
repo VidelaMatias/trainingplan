@@ -7,6 +7,24 @@ import { requireAuth } from '@/lib/auth/guards'
 import { clientSchema } from '@/types/schemas'
 import type { ActionResult } from '@/types'
 
+// The objectives editor repeats the same three input names once per row, so the
+// three lists come back parallel: index i of each belongs to the same row. Rows
+// left without a name are dropped rather than rejected — an empty row the coach
+// added and never filled in shouldn't fail the whole submit.
+function parseObjectives(formData: FormData): unknown[] {
+  const names = formData.getAll('objective_name')
+  const targets = formData.getAll('objective_target_time')
+  const achieved = formData.getAll('objective_achieved_time')
+
+  return names
+    .map((name, i) => ({
+      name,
+      target_time: targets[i] ?? null,
+      achieved_time: achieved[i] ?? null,
+    }))
+    .filter((o) => typeof o.name === 'string' && o.name.trim() !== '')
+}
+
 function parseClientForm(formData: FormData) {
   return clientSchema.safeParse({
     first_name: formData.get('first_name'),
@@ -14,6 +32,17 @@ function parseClientForm(formData: FormData) {
     email: formData.get('email'),
     phone: formData.get('phone'),
     date_of_birth: formData.get('date_of_birth'),
+    age: formData.get('age'),
+    weight_kg: formData.get('weight_kg'),
+    city: formData.get('city'),
+    available_medium: formData.get('available_medium'),
+    available_time: formData.get('available_time'),
+    training_days: formData.get('training_days'),
+    pb_5k: formData.get('pb_5k'),
+    pb_10k: formData.get('pb_10k'),
+    pb_21k: formData.get('pb_21k'),
+    pb_42k: formData.get('pb_42k'),
+    objectives: parseObjectives(formData),
     goal: formData.get('goal'),
     notes: formData.get('notes'),
     rhythm_notes: formData.get('rhythm_notes'),

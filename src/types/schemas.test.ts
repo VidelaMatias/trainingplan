@@ -70,6 +70,8 @@ describe('planSchema', () => {
 })
 
 describe('clientSchema', () => {
+  const base = { first_name: 'Ana', last_name: 'Perez' }
+
   it('requires a first and last name', () => {
     assert.equal(clientSchema.safeParse({ first_name: '', last_name: 'Perez' }).success, false)
     assert.equal(clientSchema.safeParse({ first_name: 'Ana', last_name: '  ' }).success, false)
@@ -96,10 +98,65 @@ describe('clientSchema', () => {
   })
 
   it('validates an email only when one was given', () => {
-    const base = { first_name: 'Ana', last_name: 'Perez' }
     assert.equal(clientSchema.safeParse({ ...base, email: 'nope' }).success, false)
     assert.equal(clientSchema.safeParse({ ...base, email: 'ana@example.com' }).success, true)
     assert.equal(clientSchema.safeParse(base).success, true)
+  })
+
+  it('reads age and weight from the strings a form submits', () => {
+    const parsed = clientSchema.parse({ ...base, age: '38', weight_kg: '72.5' })
+    assert.equal(parsed.age, 38)
+    assert.equal(parsed.weight_kg, 72.5)
+  })
+
+  it('accepts a comma as the decimal separator for weight', () => {
+    assert.equal(clientSchema.parse({ ...base, weight_kg: '72,5' }).weight_kg, 72.5)
+  })
+
+  it('leaves a blank age or weight as null instead of zero', () => {
+    const parsed = clientSchema.parse({ ...base, age: '', weight_kg: '   ' })
+    assert.equal(parsed.age, null)
+    assert.equal(parsed.weight_kg, null)
+  })
+
+  it('rejects a non-numeric or out-of-range age and weight', () => {
+    // Not coerced to NaN and waved through: each of these has to fail.
+    assert.equal(clientSchema.safeParse({ ...base, age: 'treinta' }).success, false)
+    assert.equal(clientSchema.safeParse({ ...base, age: '38.5' }).success, false)
+    assert.equal(clientSchema.safeParse({ ...base, age: '0' }).success, false)
+    assert.equal(clientSchema.safeParse({ ...base, age: '121' }).success, false)
+    assert.equal(clientSchema.safeParse({ ...base, weight_kg: '19' }).success, false)
+    assert.equal(clientSchema.safeParse({ ...base, weight_kg: '301' }).success, false)
+  })
+
+  it('normalizes reference marks and rejects an overlong one', () => {
+    assert.equal(clientSchema.parse({ ...base, pb_5k: ' 21:40 ' }).pb_5k, '21:40')
+    assert.equal(clientSchema.parse({ ...base, pb_42k: '' }).pb_42k, null)
+    assert.equal(clientSchema.safeParse({ ...base, pb_10k: 'x'.repeat(41) }).success, false)
+  })
+
+  it('defaults objectives to an empty array', () => {
+    assert.deepEqual(clientSchema.parse(base).objectives, [])
+  })
+
+  it('keeps objective times optional but requires a name', () => {
+    const parsed = clientSchema.parse({
+      ...base,
+      objectives: [{ name: ' Maratón de Buenos Aires ', target_time: '03:30:00', achieved_time: '' }],
+    })
+    assert.deepEqual(parsed.objectives, [
+      { name: 'Maratón de Buenos Aires', target_time: '03:30:00', achieved_time: null },
+    ])
+    assert.equal(
+      clientSchema.safeParse({ ...base, objectives: [{ name: '  ', target_time: '03:30:00' }] }).success,
+      false,
+    )
+  })
+
+  it('caps the number of objectives', () => {
+    const many = (n: number) => Array.from({ length: n }, (_, i) => ({ name: `Carrera ${i}` }))
+    assert.equal(clientSchema.safeParse({ ...base, objectives: many(20) }).success, true)
+    assert.equal(clientSchema.safeParse({ ...base, objectives: many(21) }).success, false)
   })
 })
 

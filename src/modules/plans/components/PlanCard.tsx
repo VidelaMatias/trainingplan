@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertCircle, ChevronDown, FileSpreadsheet, Pencil, Trash2 } from 'lucide-react'
+import { AlertCircle, ChevronDown, FileSpreadsheet, Info, Pencil, Send, Trash2 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -20,15 +20,21 @@ interface PlanCardProps {
   plan: PlanListItem
   clientId: string
   clientRhythmNotes?: string | null
+  // Chat del alumno en WhatsApp, ya normalizado en el servidor. Null cuando el
+  // teléfono está vacío o no da un número usable.
+  whatsappUrl?: string | null
 }
 
-export function PlanCard({ plan, clientId, clientRhythmNotes }: PlanCardProps) {
+export function PlanCard({ plan, clientId, clientRhythmNotes, whatsappUrl }: PlanCardProps) {
   const router = useRouter()
   const [expanded, setExpanded] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [loadingDelete, setLoadingDelete] = useState(false)
   const [loadingExport, setLoadingExport] = useState(false)
+  const [loadingSend, setLoadingSend] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Aviso, no error: el envío terminó bien pero falta un paso manual.
+  const [notice, setNotice] = useState<string | null>(null)
 
   // Week bodies arrive only on first expand; null means "not fetched yet".
   const [weeks, setWeeks] = useState<TrainingPlanWeek[] | null>(null)
@@ -72,39 +78,91 @@ export function PlanCard({ plan, clientId, clientRhythmNotes }: PlanCardProps) {
     }
   }
 
+  // Descargar y enviar piden el mismo archivo, y la hoja de compartir nativa
+  // necesita un File (no una URL), así que el Excel se envuelve en uno solo.
+  async function fetchPlanFile(): Promise<File | null> {
+    const res = await fetch(`/api/plans/${plan.id}/export`)
+    // Without this the JSON error body from a 401/404 was wrapped in a blob
+    // and saved as a .xlsx the coach could not open.
+    if (!res.ok) {
+      setError(
+        res.status === 401
+          ? 'Tu sesión expiró. Recargá la página e intentá de nuevo.'
+          : 'No se pudo generar el Excel.',
+      )
+      return null
+    }
+
+    const blob = await res.blob()
+    return new File([blob], filenameFrom(res) ?? `plan-${slugify(plan.title)}.xlsx`, {
+      type: blob.type,
+    })
+  }
+
+  function downloadFile(file: File) {
+    const url = URL.createObjectURL(file)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = file.name
+    // Firefox only follows a click on a node that is in the document.
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    // Revoking synchronously after click() can race the download starting.
+    setTimeout(() => URL.revokeObjectURL(url), 10_000)
+  }
+
   async function handleExport() {
     setLoadingExport(true)
     setError(null)
-    let url: string | null = null
+    setNotice(null)
     try {
-      const res = await fetch(`/api/plans/${plan.id}/export`)
-      // Without this the JSON error body from a 401/404 was wrapped in a blob
-      // and saved as a .xlsx the coach could not open.
-      if (!res.ok) {
-        setError(
-          res.status === 401
-            ? 'Tu sesión expiró. Recargá la página e intentá de nuevo.'
-            : 'No se pudo generar el Excel.',
-        )
-        return
-      }
-
-      const blob = await res.blob()
-      url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = filenameFrom(res) ?? `plan-${slugify(plan.title)}.xlsx`
-      // Firefox only follows a click on a node that is in the document.
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
+      const file = await fetchPlanFile()
+      if (file) downloadFile(file)
     } catch {
       setError('No se pudo generar el Excel.')
     } finally {
-      // Revoking synchronously after click() can race the download starting.
-      const created = url
-      if (created) setTimeout(() => URL.revokeObjectURL(created), 10_000)
       setLoadingExport(false)
+    }
+  }
+
+  // Mandar el plan por WhatsApp tiene dos caminos, y cuál se puede depende del
+  // dispositivo. La hoja de compartir nativa entrega el .xlsx como adjunto de
+  // verdad — el entrenador elige WhatsApp y el contacto ahí —, pero existe en el
+  // celular y sólo en algunos navegadores de escritorio. Donde no está no hay
+  // forma de adjuntar un archivo a WhatsApp Web desde la página: se descarga el
+  // Excel y se abre el chat del alumno para que lo arrastre.
+  async function handleSend() {
+    setLoadingSend(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const file = await fetchPlanFile()
+      if (!file) return
+
+      if (navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file] })
+          return
+        } catch (err) {
+          // Cerrar la hoja de compartir no es un error: el entrenador se
+          // arrepintió y no hay nada que avisarle.
+          if (err instanceof DOMException && err.name === 'AbortError') return
+          // Cualquier otra falla cae al plan B en vez de dejarlo sin el archivo.
+        }
+      }
+
+      downloadFile(file)
+      if (whatsappUrl) {
+        window.open(whatsappUrl, '_blank', 'noopener,noreferrer')
+        setNotice('Descargamos el Excel y abrimos el chat: arrastralo al chat para enviarlo.')
+      } else {
+        setNotice('Descargamos el Excel. Cargá el teléfono del alumno para que además se abra su chat.')
+      }
+    } catch {
+      setError('No se pudo generar el Excel.')
+    } finally {
+      setLoadingSend(false)
     }
   }
 
@@ -144,6 +202,17 @@ export function PlanCard({ plan, clientId, clientRhythmNotes }: PlanCardProps) {
             className="text-muted-foreground hover:bg-green-50 hover:text-green-600"
           >
             {loadingExport ? <Spinner className="size-4 text-green-600" /> : <FileSpreadsheet />}
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            title="Enviar por WhatsApp"
+            onClick={handleSend}
+            disabled={loadingSend}
+            className="text-muted-foreground hover:bg-emerald-50 hover:text-emerald-600"
+          >
+            {loadingSend ? <Spinner className="size-4 text-emerald-600" /> : <Send />}
           </Button>
 
           <Button
@@ -189,6 +258,13 @@ export function PlanCard({ plan, clientId, clientRhythmNotes }: PlanCardProps) {
         <p className="flex items-center gap-2 border-t border-red-100 bg-red-50 px-5 py-2.5 text-xs text-destructive">
           <AlertCircle className="size-3.5 shrink-0" />
           {error}
+        </p>
+      )}
+
+      {notice && (
+        <p className="flex items-start gap-2 border-t border-blue-100 bg-accent px-5 py-2.5 text-xs text-primary">
+          <Info className="mt-0.5 size-3.5 shrink-0" />
+          {notice}
         </p>
       )}
 

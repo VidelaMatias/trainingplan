@@ -1,6 +1,15 @@
-// Pure helpers behind the client list's search box and name ordering. They live
-// here rather than inside the component so the interesting behaviour — accent
-// folding, multi-word queries, Spanish collation — is testable on its own.
+// Pure helpers behind the client list's search box, name ordering and the
+// filtered views the dashboard links to. They live here rather than inside the
+// component so the interesting behaviour — accent folding, multi-word queries,
+// Spanish collation, what each dashboard tile means — is testable on its own.
+
+import {
+  CLIENT_FILTERS,
+  EXPIRING_SOON_DAYS,
+  PLAN_STATUS,
+  type ClientFilter,
+} from '@/types/constants'
+import { getPlanStatus, isExpiringWithin } from '@/modules/plans/utils'
 
 export interface SearchableClient {
   first_name: string
@@ -42,4 +51,45 @@ export function compareByName(a: SearchableClient, b: SearchableClient): number 
     `${a.first_name} ${a.last_name}`,
     `${b.first_name} ${b.last_name}`,
   )
+}
+
+// ── Vistas filtradas ────────────────────────────────────────────────────────
+// Cada tile del panel abre la lista de alumnos con un ?filter=…, y lo que ese
+// filtro significa se define una sola vez acá: el número del tile y la lista
+// que abre salen de la misma regla, así que no pueden contar cosas distintas.
+
+// The fields a filter looks at. Structural, like SearchableClient, so this stays
+// independent of the row shape the list component renders.
+export interface FilterableClient {
+  active: boolean
+  plans: { start_date: string; end_date: string }[]
+  owedCount: number
+}
+
+// Only the keys the panel links to are accepted; anything else (a stale link, a
+// hand-typed URL) falls back to the unfiltered list rather than an empty one.
+export function parseClientFilter(value: string | undefined): ClientFilter | null {
+  const known: readonly string[] = Object.values(CLIENT_FILTERS)
+  return value !== undefined && known.includes(value) ? (value as ClientFilter) : null
+}
+
+export function matchesClientFilter(client: FilterableClient, filter: ClientFilter): boolean {
+  switch (filter) {
+    case CLIENT_FILTERS.ACTIVE:
+      return client.active
+    // Sobre todos los planes del alumno, no sobre el que muestra la fila: quien
+    // tiene dos planes solapados igual entra si alguno está activo o por vencer.
+    case CLIENT_FILTERS.WITH_ACTIVE_PLAN:
+      return client.plans.some((plan) => getPlanStatus(plan) === PLAN_STATUS.ACTIVE)
+    case CLIENT_FILTERS.EXPIRING:
+      return client.plans.some(
+        (plan) =>
+          getPlanStatus(plan) === PLAN_STATUS.ACTIVE &&
+          isExpiringWithin(plan.end_date, EXPIRING_SOON_DAYS),
+      )
+    // El panel cuenta deudores sólo entre los alumnos activos: uno dado de baja
+    // no se reclama, y contarlo acá dejaría el tile y la lista en desacuerdo.
+    case CLIENT_FILTERS.DEBTORS:
+      return client.active && client.owedCount > 0
+  }
 }

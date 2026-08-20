@@ -1,8 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useActionState } from 'react'
-import { AlertCircle } from 'lucide-react'
+import { useActionState, useRef, useState } from 'react'
+import { AlertCircle, Plus, Trash2 } from 'lucide-react'
 
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,8 +10,8 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Spinner } from '@/components/ui/Spinner'
 import { cn } from '@/lib/utils'
-import { DEFAULT_RHYTHM_NOTES } from '@/types/constants'
-import type { ActionResult, Client } from '@/types'
+import { DEFAULT_RHYTHM_NOTES, MAX_OBJECTIVES, REFERENCE_DISTANCES } from '@/types/constants'
+import type { ActionResult, Client, ClientObjective } from '@/types'
 
 interface ClientFormProps {
   action: (prev: ActionResult<null>, formData: FormData) => Promise<ActionResult<null>>
@@ -20,9 +20,36 @@ interface ClientFormProps {
 
 const initialState: ActionResult<null> = { data: null, error: null }
 
+// The objectives editor is the only dynamic part of this form. Rows hold an id
+// purely as a React key: their values stay in the DOM (uncontrolled inputs, like
+// every other field here) and are read back from FormData on submit.
+interface ObjectiveRow {
+  id: number
+  objective: ClientObjective
+}
+
+function toRows(objectives: ClientObjective[] | undefined): ObjectiveRow[] {
+  return (objectives ?? []).map((objective, i) => ({ id: i, objective }))
+}
+
 export function ClientForm({ action, client }: ClientFormProps) {
   const [state, formAction, isPending] = useActionState(action, initialState)
+  const [objectiveRows, setObjectiveRows] = useState<ObjectiveRow[]>(() => toRows(client?.objectives))
+  const nextObjectiveId = useRef(objectiveRows.length)
   const isEdit = !!client
+
+  function addObjective() {
+    const id = nextObjectiveId.current++
+    setObjectiveRows((rows) =>
+      rows.length >= MAX_OBJECTIVES
+        ? rows
+        : [...rows, { id, objective: { name: '', target_time: null, achieved_time: null } }],
+    )
+  }
+
+  function removeObjective(id: number) {
+    setObjectiveRows((rows) => rows.filter((row) => row.id !== id))
+  }
 
   return (
     <form action={formAction} className="space-y-5">
@@ -64,13 +91,83 @@ export function ClientForm({ action, client }: ClientFormProps) {
         </div>
       </div>
 
-      <div className="space-y-1">
-        <Label htmlFor="date_of_birth">Fecha de nacimiento</Label>
-        <Input id="date_of_birth" name="date_of_birth" type="date" defaultValue={client?.date_of_birth ?? ''} />
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+        <div className="space-y-1">
+          <Label htmlFor="date_of_birth">Fecha de nacimiento</Label>
+          <Input id="date_of_birth" name="date_of_birth" type="date" defaultValue={client?.date_of_birth ?? ''} />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="age">Edad</Label>
+          <Input
+            id="age"
+            name="age"
+            type="number"
+            min={1}
+            max={120}
+            step={1}
+            inputMode="numeric"
+            defaultValue={client?.age ?? ''}
+            placeholder="38"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="weight_kg">Peso (kg)</Label>
+          <Input
+            id="weight_kg"
+            name="weight_kg"
+            type="number"
+            min={20}
+            max={300}
+            step="0.1"
+            inputMode="decimal"
+            defaultValue={client?.weight_kg ?? ''}
+            placeholder="72.5"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+        <div className="space-y-1">
+          <Label htmlFor="city">Ciudad</Label>
+          <Input id="city" name="city" defaultValue={client?.city ?? ''} placeholder="Ej: Rosario" />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="available_time">Tiempo disponible</Label>
+          <Input
+            id="available_time"
+            name="available_time"
+            defaultValue={client?.available_time ?? ''}
+            placeholder="Ej: 1 hora por la mañana"
+          />
+        </div>
       </div>
 
       <div className="space-y-1">
-        <Label htmlFor="goal">Objetivo</Label>
+        <Label htmlFor="available_medium">Medio del que dispone</Label>
+        <Textarea
+          id="available_medium"
+          name="available_medium"
+          rows={2}
+          defaultValue={client?.available_medium ?? ''}
+          placeholder="Ej: pista de atletismo, cinta en casa, senderos de tierra..."
+          className="resize-none"
+        />
+      </div>
+
+      <div className="space-y-1">
+        <Label htmlFor="training_days">Días que entrena</Label>
+        <Textarea
+          id="training_days"
+          name="training_days"
+          rows={2}
+          defaultValue={client?.training_days ?? ''}
+          placeholder="Ej: 4 días por semana — lunes, miércoles, viernes y domingo"
+          className="resize-none"
+        />
+      </div>
+
+      <div className="space-y-1">
+        <Label htmlFor="goal">Objetivo general</Label>
         <Input
           id="goal"
           name="goal"
@@ -89,6 +186,103 @@ export function ClientForm({ action, client }: ClientFormProps) {
           placeholder="Observaciones, lesiones, preferencias..."
           className="resize-none"
         />
+      </div>
+
+      <div className="border-t border-border pt-5">
+        <h2 className="text-sm font-semibold text-secondary-foreground">Marcas referenciales</h2>
+        <p className="mt-1 mb-3 text-xs text-muted-foreground">
+          Mejores tiempos por distancia. Dejá en blanco las que todavía no corrió.
+        </p>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          {REFERENCE_DISTANCES.map(({ key, label }) => (
+            <div key={key} className="space-y-1">
+              <Label htmlFor={key}>{label}</Label>
+              <Input id={key} name={key} defaultValue={client?.[key] ?? ''} placeholder="00:00:00" />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="border-t border-border pt-5">
+        <h2 className="text-sm font-semibold text-secondary-foreground">Objetivos</h2>
+        <p className="mt-1 mb-3 text-xs text-muted-foreground">
+          Carreras o metas del alumno, con el tiempo deseado y el que finalmente obtuvo.
+        </p>
+
+        {objectiveRows.length === 0 ? (
+          <p className="mb-3 rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
+            Sin objetivos cargados
+          </p>
+        ) : (
+          <div className="mb-3 space-y-3">
+            {objectiveRows.map(({ id, objective }, index) => (
+              <div key={id} className="rounded-lg border border-border p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-xs font-medium uppercase text-muted-foreground">
+                    Objetivo {index + 1}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => removeObjective(id)}
+                    aria-label={`Quitar objetivo ${index + 1}`}
+                  >
+                    <Trash2 />
+                  </Button>
+                </div>
+                {/* The three inputs repeat the same names on every row; the action
+                    zips the parallel lists back together by position. */}
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+                  <div className="space-y-1">
+                    <Label htmlFor={`objective_name_${id}`} className="text-xs">
+                      Objetivo
+                    </Label>
+                    <Input
+                      id={`objective_name_${id}`}
+                      name="objective_name"
+                      defaultValue={objective.name}
+                      placeholder="Ej: Maratón de Buenos Aires"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`objective_target_time_${id}`} className="text-xs">
+                      Tiempo deseado
+                    </Label>
+                    <Input
+                      id={`objective_target_time_${id}`}
+                      name="objective_target_time"
+                      defaultValue={objective.target_time ?? ''}
+                      placeholder="03:30:00"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`objective_achieved_time_${id}`} className="text-xs">
+                      Tiempo obtenido
+                    </Label>
+                    <Input
+                      id={`objective_achieved_time_${id}`}
+                      name="objective_achieved_time"
+                      defaultValue={objective.achieved_time ?? ''}
+                      placeholder="03:42:15"
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={addObjective}
+          disabled={objectiveRows.length >= MAX_OBJECTIVES}
+        >
+          <Plus />
+          Agregar objetivo
+        </Button>
       </div>
 
       <div className="border-t border-border pt-5">

@@ -13,18 +13,36 @@ drop table if exists public.alumnos cascade;
 -- 1. Alumnos
 -- ============================================================
 create table public.alumnos (
-  id            uuid default gen_random_uuid() primary key,
-  created_at    timestamp with time zone default now() not null,
-  created_by    uuid references auth.users(id) not null,
-  first_name    text not null,
-  last_name     text not null,
-  email         text,
-  phone         text,
-  date_of_birth date,
-  goal          text,
-  notes         text,
-  rhythm_notes  text,
-  active        boolean default true not null
+  id               uuid default gen_random_uuid() primary key,
+  created_at       timestamp with time zone default now() not null,
+  created_by       uuid references auth.users(id) not null,
+  first_name       text not null,
+  last_name        text not null,
+  email            text,
+  phone            text,
+  date_of_birth    date,
+  -- Edad cargada a mano: el entrenador suele saberla sin saber la fecha exacta
+  -- de nacimiento, así que las dos columnas se completan por separado.
+  age              int check (age is null or age between 1 and 120),
+  weight_kg        numeric(5,2) check (weight_kg is null or weight_kg between 20 and 300),
+  city             text,
+  -- Texto libre: medio del que dispone, tiempo disponible y días que entrena.
+  available_medium text,
+  available_time   text,
+  training_days    text,
+  -- Marcas referenciales, tal cual las escribe el entrenador ("21:40", "1h58").
+  pb_5k            text,
+  pb_10k           text,
+  pb_21k           text,
+  pb_42k           text,
+  -- Objetivos: array de {name, target_time, achieved_time}. Van en jsonb y no
+  -- en su propia tabla porque sólo se leen y escriben junto con el alumno.
+  objectives       jsonb default '[]'::jsonb not null
+                     check (jsonb_typeof(objectives) = 'array'),
+  goal             text,
+  notes            text,
+  rhythm_notes     text,
+  active           boolean default true not null
 );
 
 alter table public.alumnos enable row level security;

@@ -7,6 +7,15 @@ export type ActionResult<T> =
   | { data: T; error: null }
   | { data: null; error: string }
 
+// A race or milestone the alumno is training for. Stored as a jsonb array on
+// `alumnos` rather than its own table: objectives are only ever read and
+// written together with the alumno, through the same form.
+export interface ClientObjective {
+  name: string
+  target_time: string | null
+  achieved_time: string | null
+}
+
 export interface Client {
   id: string
   created_at: string
@@ -16,6 +25,21 @@ export interface Client {
   email: string | null
   phone: string | null
   date_of_birth: string | null
+  age: number | null
+  weight_kg: number | null
+  city: string | null
+  // Free text on purpose — "cinta y plaza del barrio" is as valid an answer as
+  // "pista de atletismo", and the coach reads these, no code branches on them.
+  available_medium: string | null
+  available_time: string | null
+  training_days: string | null
+  // Marcas referenciales: best known times per distance, as the coach writes
+  // them ("21:40", "1h58"). See REFERENCE_DISTANCES for the display order.
+  pb_5k: string | null
+  pb_10k: string | null
+  pb_21k: string | null
+  pb_42k: string | null
+  objectives: ClientObjective[]
   goal: string | null
   notes: string | null
   rhythm_notes: string | null

@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { MAX_OBJECTIVES } from '@/types/constants'
+
 // Optional free-text field coming from FormData: '' / null / whitespace all
 // normalize to null so the DB stores a clean absence instead of empty strings.
 const nullableText = z.preprocess(
@@ -12,6 +14,29 @@ const nullableEmail = z.preprocess(
   (v) => (typeof v === 'string' && v.trim() !== '' ? v.trim() : null),
   z.string().email('Email inválido').nullable(),
 )
+
+// Short optional field: marks and objective times ("21:40", "3:42:10"), never
+// prose. Same normalization as nullableText plus a cap, so a pasted paragraph
+// can't land in a column the UI renders as a chip.
+const nullableShortText = z.preprocess(
+  (v) => (typeof v === 'string' && v.trim() !== '' ? v.trim() : null),
+  z.string().max(40, 'El valor ingresado es demasiado largo').nullable(),
+)
+
+// Optional number arriving as a FormData string: '' becomes null and "62,5"
+// becomes 62.5, since a coach types either decimal separator. Anything that
+// isn't a number is passed through untouched so Zod rejects it, rather than
+// being coerced into a silent NaN.
+function nullableNumber(opts: { min: number; max: number; int?: boolean; message: string }) {
+  const base = opts.int ? z.number().int(opts.message) : z.number()
+  return z.preprocess((v) => {
+    if (typeof v !== 'string') return v ?? null
+    const trimmed = v.trim()
+    if (trimmed === '') return null
+    const parsed = Number(trimmed.replace(',', '.'))
+    return Number.isFinite(parsed) ? parsed : trimmed
+  }, base.min(opts.min, opts.message).max(opts.max, opts.message).nullable())
+}
 
 // A single day cell in a plan week: empty content collapses to null.
 // Whitespace is preserved (not trimmed) — coaches format sessions across lines.
@@ -59,12 +84,40 @@ export const changePasswordSchema = z
     path: ['password'],
   })
 
+// One objective of an alumno: a race or milestone plus the time aimed for and,
+// once run, the time actually achieved. The form drops rows with no name before
+// they get here, so the name can be required.
+export const clientObjectiveSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, 'El objetivo necesita un nombre')
+    .max(120, 'El nombre del objetivo es demasiado largo'),
+  target_time: nullableShortText,
+  achieved_time: nullableShortText,
+})
+
 export const clientSchema = z.object({
   first_name: z.string().trim().min(1, 'El nombre es requerido'),
   last_name: z.string().trim().min(1, 'El apellido es requerido'),
   email: nullableEmail,
   phone: nullableText,
   date_of_birth: nullableText,
+  // Kept alongside date_of_birth on purpose: coaches usually know the age
+  // without knowing the birthday, and the two are filled independently.
+  age: nullableNumber({ min: 1, max: 120, int: true, message: 'La edad debe ser un número entero entre 1 y 120' }),
+  weight_kg: nullableNumber({ min: 20, max: 300, message: 'El peso debe estar entre 20 y 300 kg' }),
+  city: nullableText,
+  available_medium: nullableText,
+  available_time: nullableText,
+  training_days: nullableText,
+  pb_5k: nullableShortText,
+  pb_10k: nullableShortText,
+  pb_21k: nullableShortText,
+  pb_42k: nullableShortText,
+  // Defaulted rather than required: an alumno without objectives is normal, and
+  // the create form can then submit without the field at all.
+  objectives: z.array(clientObjectiveSchema).max(MAX_OBJECTIVES, 'Demasiados objetivos').default([]),
   goal: nullableText,
   notes: nullableText,
   rhythm_notes: nullableText,
@@ -118,6 +171,7 @@ export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>
 export type UpdatePasswordInput = z.infer<typeof updatePasswordSchema>
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>
 export type ClientInput = z.infer<typeof clientSchema>
+export type ClientObjectiveInput = z.infer<typeof clientObjectiveSchema>
 export type PlanWeekInput = z.infer<typeof planWeekSchema>
 export type PlanInput = z.infer<typeof planSchema>
 export type PaymentInput = z.infer<typeof paymentSchema>

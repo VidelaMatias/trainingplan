@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { AlertTriangle, CircleDollarSign, Plus, Users } from 'lucide-react'
+import { AlertTriangle, ChevronRight, CircleDollarSign, Plus, Users } from 'lucide-react'
 
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -11,7 +11,7 @@ import { getAllPayments } from '@/modules/payments/queries'
 import { buildPaidIndex, getOwedMonths } from '@/modules/payments/utils'
 import { getPlanStatus, isExpiringWithin } from '@/modules/plans/utils'
 import { PaymentToggle } from '@/modules/payments/components/PaymentToggle'
-import { PLAN_STATUS } from '@/types/constants'
+import { CLIENT_FILTERS, EXPIRING_SOON_DAYS, PLAN_STATUS } from '@/types/constants'
 
 interface DashboardPlan {
   id: string
@@ -42,7 +42,7 @@ export default async function DashboardPage() {
 
   const plans = (plansData ?? []) as unknown as DashboardPlan[]
   const activePlans = plans.filter((p) => getPlanStatus(p) === PLAN_STATUS.ACTIVE)
-  const expiringThisWeek = activePlans.filter((p) => isExpiringWithin(p.end_date, 7))
+  const expiringThisWeek = activePlans.filter((p) => isExpiringWithin(p.end_date, EXPIRING_SOON_DAYS))
 
   // Indexed once and reused across every client, instead of re-scanning the
   // full payments array per client inside getOwedMonths.
@@ -60,17 +60,30 @@ export default async function DashboardPage() {
       </div>
 
       <div className="mb-6 grid grid-cols-2 gap-3 md:mb-8 md:grid-cols-3 md:gap-4 xl:grid-cols-5">
-        <StatTile label="Alumnos" value={clients.length} />
-        <StatTile label="Activos" value={activeClients.length} valueClassName="text-green-600" />
-        <StatTile label="Planes activos" value={activePlans.length} valueClassName="text-primary" />
+        {/* Cada tile abre la lista de alumnos ya filtrada por lo que cuenta. */}
+        <StatTile label="Alumnos" value={clients.length} href="/dashboard/clients" />
+        <StatTile
+          label="Activos"
+          value={activeClients.length}
+          href={`/dashboard/clients?filter=${CLIENT_FILTERS.ACTIVE}`}
+          valueClassName="text-green-600"
+        />
+        <StatTile
+          label="Planes activos"
+          value={activePlans.length}
+          href={`/dashboard/clients?filter=${CLIENT_FILTERS.WITH_ACTIVE_PLAN}`}
+          valueClassName="text-primary"
+        />
         <StatTile
           label="Vencen esta semana"
           value={expiringThisWeek.length}
+          href={`/dashboard/clients?filter=${CLIENT_FILTERS.EXPIRING}`}
           highlight={expiringThisWeek.length > 0 ? 'amber' : undefined}
         />
         <StatTile
           label="Cuotas pendientes"
           value={debtors.length}
+          href={`/dashboard/clients?filter=${CLIENT_FILTERS.DEBTORS}`}
           highlight={debtors.length > 0 ? 'red' : undefined}
         />
       </div>
@@ -151,27 +164,38 @@ export default async function DashboardPage() {
   )
 }
 
+// A whole tile is one link: the number is the headline, and following it opens
+// the list of exactly the alumnos that number counts.
 function StatTile({
   label,
   value,
+  href,
   valueClassName,
   highlight,
 }: {
   label: string
   value: number
+  href: string
   valueClassName?: string
   highlight?: 'amber' | 'red'
 }) {
   return (
-    <div
+    <Link
+      href={href}
       className={cn(
-        'rounded-xl border p-5',
-        highlight === 'amber' && 'border-amber-200 bg-amber-50',
-        highlight === 'red' && 'border-red-200 bg-red-50',
-        !highlight && 'border-border bg-card',
+        'group block rounded-xl border p-5 transition hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+        highlight === 'amber' && 'border-amber-200 bg-amber-50 hover:border-amber-300',
+        highlight === 'red' && 'border-red-200 bg-red-50 hover:border-red-300',
+        !highlight && 'border-border bg-card hover:border-primary/40',
       )}
     >
-      <p className="text-xs font-medium uppercase text-muted-foreground">{label}</p>
+      <p className="flex items-center gap-1 text-xs font-medium uppercase text-muted-foreground">
+        {label}
+        <ChevronRight
+          className="size-3.5 shrink-0 opacity-0 transition group-hover:opacity-100"
+          aria-hidden
+        />
+      </p>
       <p
         className={cn(
           'mt-1 text-3xl font-bold text-slate-900',
@@ -182,6 +206,6 @@ function StatTile({
       >
         {value}
       </p>
-    </div>
+    </Link>
   )
 }

@@ -27,6 +27,10 @@ export const MONTH_NAMES = [
   'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
 ] as const
 
+// Ventana de "vence esta semana": la usan el contador del panel y la lista que
+// ese contador abre, así que vive acá para que no puedan desincronizarse.
+export const EXPIRING_SOON_DAYS = 7
+
 export const PLAN_STATUS = {
   ACTIVE: 'active',
   UPCOMING: 'upcoming',
@@ -51,6 +55,38 @@ export const PLAN_LIST_BADGE: Record<PlanStatus | 'none', { label: string; varia
   none: { label: 'Sin plan', variant: 'neutral' },
 }
 
+// Vistas filtradas de la lista de alumnos. Cada tile del panel enlaza a una de
+// ellas con ?filter=…, así que la key viaja en la URL y es parte del contrato:
+// renombrarla rompe los links guardados.
+export const CLIENT_FILTERS = {
+  ACTIVE: 'active',
+  WITH_ACTIVE_PLAN: 'with-active-plan',
+  EXPIRING: 'expiring',
+  DEBTORS: 'debtors',
+} as const
+
+export type ClientFilter = (typeof CLIENT_FILTERS)[keyof typeof CLIENT_FILTERS]
+
+// Título de la vista filtrada y qué decir cuando no queda ningún alumno en ella.
+export const CLIENT_FILTER_META: Record<ClientFilter, { title: string; empty: string }> = {
+  [CLIENT_FILTERS.ACTIVE]: {
+    title: 'Alumnos activos',
+    empty: 'No hay alumnos activos',
+  },
+  [CLIENT_FILTERS.WITH_ACTIVE_PLAN]: {
+    title: 'Alumnos con plan activo',
+    empty: 'Ningún alumno tiene un plan activo',
+  },
+  [CLIENT_FILTERS.EXPIRING]: {
+    title: 'Alumnos con planes que vencen esta semana',
+    empty: 'Ningún plan vence esta semana',
+  },
+  [CLIENT_FILTERS.DEBTORS]: {
+    title: 'Alumnos con cuotas pendientes',
+    empty: 'Todos los alumnos están al día',
+  },
+}
+
 export const DEFAULT_RHYTHM_NOTES = `Ritmo U (Umbral de lactato): 3:15 a 3:20 x mil
 Ritmo S/L (Suave/Largo): 4:30 a 5:10 x mil (si estás muy agotado ó fondo de semana POST DÍA INTENSO mas despacio)
 
@@ -67,3 +103,19 @@ Fartlek Largo (Cambios de ritmo): (6 MIN- 4 MIN - 2 MIN) siempre recup 2 min tro
 Ritmo Medio: Escala de percepción de esfuerzo de 8 puntos sobre 10. En llano, ritmo cercano al U.
 
 Fartlek Activación (Cambios de ritmo): 1 min ritmo medio x 1 min trote suave.`
+
+// Marcas referenciales del alumno: las cuatro distancias de ruta que el
+// formulario y la ficha muestran en este orden. La `key` es la columna en
+// `alumnos`, así que la lista es la única fuente de verdad de ese mapeo.
+export const REFERENCE_DISTANCES = [
+  { key: 'pb_5k' as const, label: '5K' },
+  { key: 'pb_10k' as const, label: '10K' },
+  { key: 'pb_21k' as const, label: '21K' },
+  { key: 'pb_42k' as const, label: '42K' },
+]
+
+export type ReferenceDistanceKey = (typeof REFERENCE_DISTANCES)[number]['key']
+
+// Tope de objetivos por alumno. Muy por encima de cualquier caso real, pero
+// evita que un payload armado a mano infle la fila con un array gigante.
+export const MAX_OBJECTIVES = 20
