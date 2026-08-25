@@ -119,3 +119,6 @@ export type ReferenceDistanceKey = (typeof REFERENCE_DISTANCES)[number]['key']
 // Tope de objetivos por alumno. Muy por encima de cualquier caso real, pero
 // evita que un payload armado a mano infle la fila con un array gigante.
 export const MAX_OBJECTIVES = 20
+
+// Filas por página en todos los listados (alumnos, planes, deudores).
+export const PAGE_SIZE = 10

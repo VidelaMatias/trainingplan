@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Spinner } from '@/components/ui/Spinner'
 import { cn } from '@/lib/utils'
+import { RhythmNotes } from '@/modules/clients/components/RhythmNotes'
 import { DAYS, type DayKey } from '@/types/constants'
 import {
   addWeeks,
@@ -132,14 +133,10 @@ export function PlanForm({ action, cancelHref, clientRhythmNotes, plan }: PlanFo
       {clientRhythmNotes && (
         <div className="rounded-xl border border-border bg-muted px-4 py-3">
           <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Ritmos del alumno</p>
-          {clientRhythmNotes
-            .split('\n')
-            .filter(Boolean)
-            .map((line, i) => (
-              <p key={i} className="font-mono text-xs italic leading-relaxed text-red-700">
-                {line}
-              </p>
-            ))}
+          <RhythmNotes
+            notes={clientRhythmNotes}
+            lineClassName="font-mono italic leading-relaxed"
+          />
         </div>
       )}
 
@@ -251,15 +248,24 @@ const WeekEditor = memo(function WeekEditor({
         )}
       </div>
 
-      <div className="overflow-x-auto">
-        <div className="grid min-w-140 grid-cols-7 divide-x divide-slate-100">
+      {/* Igual que la vista de la semana: 7 columnas en desktop, y en mobile los
+          días apilados. Con la grilla, cargar una semana en el teléfono era
+          escribir dentro de campos de ~80px scrolleando de costado. */}
+      <div className="md:overflow-x-auto">
+        <div className="grid grid-cols-1 divide-y divide-slate-100 md:min-w-140 md:grid-cols-7 md:divide-x md:divide-y-0">
           {DAYS.map((day, i) => {
             const beforeStart = dates[i] < startDate
             return (
-              <div key={day.key} className="flex flex-col">
+              <div
+                key={day.key}
+                // Los días anteriores al inicio del plan van deshabilitados y se
+                // guardan vacíos: en mobile, donde no alinean ninguna grilla,
+                // sólo ocuparían lugar.
+                className={cn('md:flex md:flex-col', beforeStart ? 'hidden md:flex' : 'flex')}
+              >
                 <div
                   className={cn(
-                    'px-1 py-1.5 text-center text-xs font-bold text-white',
+                    'flex w-24 shrink-0 items-center justify-center px-1 py-1.5 text-center text-xs font-bold text-white md:w-auto',
                     beforeStart ? 'bg-slate-300' : 'bg-red-600',
                   )}
                 >
@@ -275,7 +281,9 @@ const WeekEditor = memo(function WeekEditor({
                   rows={4}
                   disabled={beforeStart}
                   title={beforeStart ? 'Anterior al inicio del plan' : undefined}
-                  className="w-full flex-1 resize-none border-0 border-b border-slate-100 p-2 text-xs text-slate-700 placeholder-slate-300 transition outline-none focus:bg-blue-50 disabled:cursor-not-allowed disabled:bg-slate-50"
+                  // text-base en mobile por el zoom al enfocar de iOS; en la
+                  // grilla de desktop vuelve al xs, que es lo que la hace entrar.
+                  className="min-w-0 flex-1 resize-none border-0 border-b border-slate-100 p-2 text-base text-slate-700 placeholder-slate-300 transition outline-none focus:bg-blue-50 disabled:cursor-not-allowed disabled:bg-slate-50 md:w-full md:text-xs"
                 />
               </div>
             )

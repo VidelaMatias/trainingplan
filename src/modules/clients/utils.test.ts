@@ -8,6 +8,8 @@ import {
   nameHaystack,
   normalizeName,
   parseClientFilter,
+  parseRhythmLine,
+  parseRhythmNotes,
   searchTokens,
   type FilterableClient,
   type SearchableClient,
@@ -154,6 +156,38 @@ const FINISHED = { start_date: '2026-06-01', end_date: '2026-07-31' }
 
 afterEach(() => {
   mock.timers.reset()
+})
+
+describe('parseRhythmLine', () => {
+  it('splits label from value at the colon', () => {
+    assert.deepEqual(parseRhythmLine('Ritmo U (Umbral de lactato): 3:15 a 3:20 x mil'), {
+      label: 'Ritmo U (Umbral de lactato):',
+      value: ' 3:15 a 3:20 x mil',
+    })
+  })
+
+  it('only splits at the first colon', () => {
+    // Los valores traen sus propios «:» (distancias, tiempos); partir por todos
+    // dejaría la etiqueta hecha pedazos y el resto sin color.
+    assert.deepEqual(parseRhythmLine('Ritmo R (Repetición): 200 MTS: 31/34 SEG'), {
+      label: 'Ritmo R (Repetición):',
+      value: ' 200 MTS: 31/34 SEG',
+    })
+  })
+
+  it('treats a line without a colon as all value', () => {
+    assert.deepEqual(parseRhythmLine('Sin etiqueta'), { label: null, value: 'Sin etiqueta' })
+  })
+})
+
+describe('parseRhythmNotes', () => {
+  it('drops blank lines and parses the rest', () => {
+    const lines = parseRhythmNotes('Ritmo M: 3:35 x mil\n\nRitmo I: 3 x mil')
+    assert.deepEqual(lines, [
+      { label: 'Ritmo M:', value: ' 3:35 x mil' },
+      { label: 'Ritmo I:', value: ' 3 x mil' },
+    ])
+  })
 })
 
 describe('parseClientFilter', () => {

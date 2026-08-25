@@ -10,7 +10,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (!user) redirect('/login')
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-dvh bg-slate-50">
       {/* Desktop sidebar — fixed, hidden on mobile */}
       <div className="hidden md:flex fixed inset-y-0 left-0 w-64 flex-col z-30">
         <Sidebar userEmail={user.email ?? ''} />
@@ -24,8 +24,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <span className="text-white font-semibold">Training Planner</span>
       </header>
 
-      {/* Main content */}
-      <main className="md:ml-64 pt-14 md:pt-0 pb-20 md:pb-0 p-4 md:p-6 lg:p-8 min-h-screen">
+      {/* Main content. En mobile el header mide h-14 y es fixed: el padding
+          superior lo despeja (3.5rem) y suma el mismo aire que los costados. */}
+      <main className="md:ml-64 pt-18 md:pt-0 pb-nav md:pb-0 p-4 md:p-6 lg:p-8 min-h-dvh">
         {children}
       </main>
 

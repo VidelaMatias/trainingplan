@@ -41,3 +41,18 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Barra inferior de mobile. Es fixed, así que en un iPhone queda por debajo del
+   gesture bar: env(safe-area-inset-bottom) devuelve ese alto. Necesita
+   viewport-fit=cover (lo declara el layout raíz); en pantallas sin recorte el
+   inset es 0 y estas dos utilidades no suman nada.
+   `pb-safe` ya se usaba en MobileNav pero no existía: Tailwind no la trae. */
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Alto de la nav (≈4rem) más el recorte, para que el contenido no termine
+   tapado por la barra. */
+@utility pb-nav {
+  padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+}

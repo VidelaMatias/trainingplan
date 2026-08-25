@@ -13,7 +13,7 @@ import { getPlanStatus } from '@/modules/plans/utils'
 import { getPaymentsForClient } from '@/modules/payments/queries'
 import { buildPaidIndex, getAllMonthsWithStatus } from '@/modules/payments/utils'
 import { PaymentToggle } from '@/modules/payments/components/PaymentToggle'
-import { PlanCard } from '@/modules/plans/components/PlanCard'
+import { PlansList } from '@/modules/plans/components/PlansList'
 import { PLAN_STATUS, REFERENCE_DISTANCES } from '@/types/constants'
 
 interface ClientDetailPageProps {
@@ -110,17 +110,12 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
               </Link>
             </Card>
           ) : (
-            <div className="space-y-3">
-              {plans.map((plan) => (
-                <PlanCard
-                  key={plan.id}
-                  plan={plan}
-                  clientId={id}
-                  clientRhythmNotes={client.rhythm_notes}
-                  whatsappUrl={whatsappUrl}
-                />
-              ))}
-            </div>
+            <PlansList
+              plans={plans}
+              clientId={id}
+              clientRhythmNotes={client.rhythm_notes}
+              whatsappUrl={whatsappUrl}
+            />
           )}
         </section>
 
@@ -189,7 +184,10 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
               <CircleDollarSign className="size-4 text-muted-foreground" />
               Historial de cuotas
             </h2>
-            <div className="flex flex-wrap gap-2">
+            {/* Un mes por alumno desde el alta: con los años la grilla crece sin
+                techo, así que en desktop scrollea dentro de la tarjeta. En
+                mobile se deja fluir: la página ya scrollea. */}
+            <div className="flex flex-wrap gap-2 md:max-h-56 md:overflow-y-auto md:overflow-x-hidden md:pr-1">
               {monthsWithStatus.map(({ year, month, label, paid }) => (
                 <PaymentToggle
                   key={`${year}-${month}`}

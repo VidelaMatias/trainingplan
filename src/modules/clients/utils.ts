@@ -53,6 +53,36 @@ export function compareByName(a: SearchableClient, b: SearchableClient): number 
   )
 }
 
+// ── Ritmos de referencia ────────────────────────────────────────────────────
+// Cada línea del bloque es «etiqueta: valor» (por ejemplo «Ritmo U (Umbral de
+// lactato): 3:15 a 3:20 x mil»). La app y el Excel exportado la pintan igual:
+// la etiqueta en rojo subrayado y el valor en azul, así que dónde termina una y
+// empieza el otro se decide una sola vez acá.
+
+export interface RhythmLine {
+  /** Texto anterior a los dos puntos, ya con el «:» incluido. Null si no hay. */
+  label: string | null
+  value: string
+}
+
+export function parseRhythmLine(line: string): RhythmLine {
+  // Sólo el primer «:»: el valor suele traer más («200 MTS: 31/34 SEG», horarios
+  // como «3:15»), y partir por todos rompería la etiqueta en pedazos.
+  const colon = line.indexOf(':')
+  if (colon === -1) return { label: null, value: line }
+
+  return {
+    label: line.slice(0, colon + 1),
+    value: line.slice(colon + 1),
+  }
+}
+
+// Las líneas en blanco separan bloques en el textarea pero no aportan nada al
+// render, así que se descartan una sola vez para todos los consumidores.
+export function parseRhythmNotes(notes: string): RhythmLine[] {
+  return notes.split('\n').filter(Boolean).map(parseRhythmLine)
+}
+
 // ── Vistas filtradas ────────────────────────────────────────────────────────
 // Cada tile del panel abre la lista de alumnos con un ?filter=…, y lo que ese
 // filtro significa se define una sola vez acá: el número del tile y la lista

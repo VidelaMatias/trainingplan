@@ -51,7 +51,7 @@ export default function ResetPasswordPage() {
 
   if (!ready) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-linear-to-br from-slate-900 to-slate-800">
+      <div className="flex min-h-dvh items-center justify-center bg-linear-to-br from-slate-900 to-slate-800">
         <div className="w-full max-w-md rounded-2xl bg-white px-8 py-10 text-center shadow-2xl">
           <div className="mb-4 inline-flex size-16 items-center justify-center rounded-2xl bg-blue-100">
             <Spinner className="size-8 text-primary" />
@@ -63,7 +63,7 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-linear-to-br from-slate-900 to-slate-800">
+    <div className="flex min-h-dvh items-center justify-center bg-linear-to-br from-slate-900 to-slate-800">
       <div className="w-full max-w-md rounded-2xl bg-white px-8 py-10 shadow-2xl">
         <div className="mb-8 text-center">
           <div className="mb-4 inline-flex size-16 items-center justify-center rounded-2xl bg-primary">

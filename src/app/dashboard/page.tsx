@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { AlertTriangle, ChevronRight, CircleDollarSign, Plus, Users } from 'lucide-react'
+import { ChevronRight, Plus, Users } from 'lucide-react'
 
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -10,7 +10,11 @@ import { getClients } from '@/modules/clients/queries'
 import { getAllPayments } from '@/modules/payments/queries'
 import { buildPaidIndex, getOwedMonths } from '@/modules/payments/utils'
 import { getPlanStatus, isExpiringWithin } from '@/modules/plans/utils'
-import { PaymentToggle } from '@/modules/payments/components/PaymentToggle'
+import { DebtorsPanel, type DebtorRow } from '@/modules/payments/components/DebtorsPanel'
+import {
+  ExpiringPlansPanel,
+  type ExpiringPlanRow,
+} from '@/modules/plans/components/ExpiringPlansPanel'
 import { CLIENT_FILTERS, EXPIRING_SOON_DAYS, PLAN_STATUS } from '@/types/constants'
 
 interface DashboardPlan {
@@ -48,9 +52,21 @@ export default async function DashboardPage() {
   // full payments array per client inside getOwedMonths.
   const paidIndex = buildPaidIndex(payments)
   const activeClients = clients.filter((c) => c.active)
-  const debtors = activeClients
-    .map((c) => ({ client: c, owed: getOwedMonths(c.created_at, c.id, paidIndex) }))
+  const debtors: DebtorRow[] = activeClients
+    .map((c) => ({
+      id: c.id,
+      first_name: c.first_name,
+      last_name: c.last_name,
+      owed: getOwedMonths(c.created_at, c.id, paidIndex),
+    }))
     .filter(({ owed }) => owed.length > 0)
+
+  const expiringRows: ExpiringPlanRow[] = expiringThisWeek.map((p) => ({
+    id: p.id,
+    title: p.title,
+    end_date: p.end_date,
+    clientName: `${p.alumnos?.first_name ?? ''} ${p.alumnos?.last_name ?? ''}`.trim(),
+  }))
 
   return (
     <div>
@@ -88,67 +104,9 @@ export default async function DashboardPage() {
         />
       </div>
 
-      {expiringThisWeek.length > 0 && (
-        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-5">
-          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-amber-800">
-            <AlertTriangle className="size-4" />
-            Planes que vencen esta semana
-          </h2>
-          <div className="space-y-2">
-            {expiringThisWeek.map((p) => (
-              <div key={p.id} className="flex items-center justify-between text-sm">
-                <span className="font-medium text-amber-900">
-                  {p.alumnos?.first_name} {p.alumnos?.last_name} — {p.title}
-                </span>
-                <span className="text-xs text-amber-700">
-                  vence{' '}
-                  {new Date(p.end_date + 'T12:00:00').toLocaleDateString('es-AR', {
-                    weekday: 'short',
-                    day: 'numeric',
-                    month: 'short',
-                  })}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {expiringRows.length > 0 && <ExpiringPlansPanel plans={expiringRows} />}
 
-      {debtors.length > 0 && (
-        <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-5">
-          <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-red-800">
-            <CircleDollarSign className="size-4" />
-            Cuotas pendientes
-          </h2>
-          <div className="space-y-3">
-            {debtors.map(({ client: c, owed }) => (
-              <div key={c.id} className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0">
-                  <Link
-                    href={`/dashboard/clients/${c.id}`}
-                    className="text-sm font-medium text-red-900 hover:underline"
-                  >
-                    {c.first_name} {c.last_name}
-                  </Link>
-                  <p className="mt-0.5 text-xs text-red-600">Debe: {owed.map((m) => m.label).join(', ')}</p>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {owed.map(({ year, month, label }) => (
-                    <PaymentToggle
-                      key={`${year}-${month}`}
-                      alumnoId={c.id}
-                      year={year}
-                      month={month}
-                      paid={false}
-                      monthLabel={label}
-                    />
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {debtors.length > 0 && <DebtorsPanel debtors={debtors} />}
 
       <div className="flex gap-3">
         <Link href="/dashboard/clients" className={cn(buttonVariants())}>
@@ -183,7 +141,9 @@ function StatTile({
     <Link
       href={href}
       className={cn(
-        'group block rounded-xl border p-5 transition hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+        // Más compactos en mobile: cinco tiles a p-5 empujaban todo el panel
+        // debajo del pliegue antes de mostrar un solo dato.
+        'group block rounded-xl border p-3 transition hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:p-5',
         highlight === 'amber' && 'border-amber-200 bg-amber-50 hover:border-amber-300',
         highlight === 'red' && 'border-red-200 bg-red-50 hover:border-red-300',
         !highlight && 'border-border bg-card hover:border-primary/40',
@@ -198,7 +158,7 @@ function StatTile({
       </p>
       <p
         className={cn(
-          'mt-1 text-3xl font-bold text-slate-900',
+          'mt-0.5 text-2xl font-bold text-slate-900 md:mt-1 md:text-3xl',
           valueClassName,
           highlight === 'amber' && 'text-amber-600',
           highlight === 'red' && 'text-destructive',

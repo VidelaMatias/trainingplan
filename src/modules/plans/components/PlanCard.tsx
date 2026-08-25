@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Spinner } from '@/components/ui/Spinner'
 import { cn } from '@/lib/utils'
+import { RhythmNotes } from '@/modules/clients/components/RhythmNotes'
 import { DAYS } from '@/types/constants'
 import { PLAN_STATUS, PLAN_STATUS_META } from '@/types/constants'
 import { getPlanStatus, getWeekDates } from '@/modules/plans/utils'
@@ -168,7 +169,10 @@ export function PlanCard({ plan, clientId, clientRhythmNotes, whatsappUrl }: Pla
 
   return (
     <Card className={cn('overflow-hidden', status === PLAN_STATUS.ACTIVE && 'border-blue-200')}>
-      <div className="flex items-start justify-between gap-3 px-5 py-4">
+      {/* En mobile los cinco botones y el título no entran en la misma línea: el
+          título quedaba truncado a dos palabras. Las acciones bajan a su propio
+          renglón y recién en sm vuelven al costado. */}
+      <div className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="truncate font-semibold text-card-foreground">{plan.title}</h3>
@@ -275,16 +279,7 @@ export function PlanCard({ plan, clientId, clientRhythmNotes, whatsappUrl }: Pla
               <p className="mb-1.5 text-xs font-semibold uppercase text-muted-foreground">
                 Ritmos de referencia
               </p>
-              <div className="space-y-0.5">
-                {clientRhythmNotes
-                  .split('\n')
-                  .filter(Boolean)
-                  .map((line, i) => (
-                    <p key={i} className="text-xs italic text-red-700">
-                      {line}
-                    </p>
-                  ))}
-              </div>
+              <RhythmNotes notes={clientRhythmNotes} lineClassName="italic" />
             </div>
           )}
 
@@ -346,22 +341,35 @@ function WeekView({ week, startDate }: { week: TrainingPlanWeek; startDate: stri
           {fmtShort(from)} — {fmtShort(dates[6])}
         </span>
       </div>
-      <div className="overflow-x-auto">
-        <div className="grid min-w-140 grid-cols-7 divide-x divide-slate-100 border-b border-slate-100">
+      {/* Dos lecturas de la misma semana. En desktop, la grilla de 7 columnas
+          que replica el calendario. En mobile no entra —arrancaba en 35rem y
+          scrolleaba de costado dentro de una página que ya scrollea— así que los
+          días se apilan: etiqueta a la izquierda, sesión a la derecha. */}
+      <div className="md:overflow-x-auto">
+        <div className="grid grid-cols-1 divide-y divide-slate-100 border-b border-slate-100 md:min-w-140 md:grid-cols-7 md:divide-x md:divide-y-0">
           {DAYS.map((day, i) => {
             const beforeStart = dates[i] < startDate
             return (
-              <div key={day.key} className={cn('min-h-15', beforeStart && 'bg-slate-50')}>
+              <div
+                key={day.key}
+                className={cn(
+                  'min-h-15',
+                  // Los días previos al inicio del plan sólo existen para no
+                  // desalinear la grilla del calendario: apilados no alinean
+                  // nada, así que en mobile no se muestran.
+                  beforeStart ? 'hidden bg-slate-50 md:block' : 'flex md:block',
+                )}
+              >
                 <div
                   className={cn(
-                    'py-1 text-center text-xs font-bold text-white',
+                    'flex w-24 shrink-0 items-center justify-center px-2 py-1 text-center text-xs font-bold text-white md:w-auto',
                     beforeStart ? 'bg-slate-300' : 'bg-red-600',
                   )}
                 >
                   {day.label}
                 </div>
                 {!beforeStart && (
-                  <p className="whitespace-pre-wrap p-2 text-xs leading-relaxed text-slate-600">
+                  <p className="min-w-0 flex-1 whitespace-pre-wrap p-2 text-xs leading-relaxed text-slate-600">
                     {week[day.key] ?? <span className="text-slate-300">—</span>}
                   </p>
                 )}

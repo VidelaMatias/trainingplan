@@ -61,8 +61,19 @@ export function PaymentToggle({
         {label}
       </button>
 
+      {/* Como ayuda de hover existe sólo de md para arriba: en touch no hay
+          hover, y aunque esté en opacity-0 el globo sigue ocupando lugar, así
+          que su ancho —una sola línea de texto— estiraba el scroll horizontal de
+          lo que lo contuviera. Un error, en cambio, se muestra siempre y sin
+          hover: si no, el único aviso era el anillo rojo. */}
       <div
-        className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 -translate-x-1/2 opacity-0 transition-opacity duration-150 group-hover/tooltip:opacity-100"
+        role={error ? 'alert' : undefined}
+        className={cn(
+          'pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 -translate-x-1/2 transition-opacity duration-150',
+          error
+            ? 'opacity-100'
+            : 'hidden opacity-0 group-hover/tooltip:opacity-100 md:block',
+        )}
       >
         <div className="relative whitespace-nowrap rounded-md bg-slate-800 px-2.5 py-1.5 text-xs text-white shadow-lg">
           {tooltip}

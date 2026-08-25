@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Pagination, usePagination } from '@/components/ui/pagination'
 import { cn } from '@/lib/utils'
 import { ClientActions } from '@/modules/clients/components/ClientActions'
 import {
@@ -59,9 +60,19 @@ export function ClientsList({ rows }: { rows: ClientRow[] }) {
     return result.sort((a, b) => (sort === 'asc' ? compareByName(a, b) : compareByName(b, a)))
   }, [indexed, query, sort])
 
+  const { page, pageCount, pageItems, total, from, to, setPage } = usePagination(visible)
+
   // none → A-Z → Z-A → none, so the coach can get the original order back.
+  // Cualquier cambio de búsqueda u orden vuelve a la primera página: seguir en
+  // la 4 de un listado que se acaba de reordenar no significa nada.
   function cycleSort() {
     setSort((current) => (current === null ? 'asc' : current === 'asc' ? 'desc' : null))
+    setPage(1)
+  }
+
+  function search(value: string) {
+    setQuery(value)
+    setPage(1)
   }
 
   const searching = query.trim() !== ''
@@ -74,7 +85,7 @@ export function ClientsList({ rows }: { rows: ClientRow[] }) {
           <Input
             type="search"
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => search(event.target.value)}
             placeholder="Buscar por nombre o apellido..."
             aria-label="Buscar alumno por nombre o apellido"
             // The native search affordance is suppressed in favour of the
@@ -84,7 +95,7 @@ export function ClientsList({ rows }: { rows: ClientRow[] }) {
           {searching && (
             <button
               type="button"
-              onClick={() => setQuery('')}
+              onClick={() => search('')}
               aria-label="Limpiar búsqueda"
               className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground transition hover:bg-muted hover:text-secondary-foreground"
             >
@@ -114,15 +125,17 @@ export function ClientsList({ rows }: { rows: ClientRow[] }) {
           <p className="mt-1 text-sm text-muted-foreground">
             Ninguno coincide con «{query.trim()}»
           </p>
-          <Button variant="secondary" size="sm" onClick={() => setQuery('')} className="mt-4">
+          <Button variant="secondary" size="sm" onClick={() => search('')} className="mt-4">
             Limpiar búsqueda
           </Button>
         </Card>
       ) : (
         <>
-          {/* Mobile: card list */}
+          {/* Mobile: card list. Sin tope de alto a propósito — el paginado ya
+              deja 10 tarjetas, y encerrarlas en su propio scroll obliga a
+              scrollear dentro de una página que ya scrollea. */}
           <div className="space-y-3 md:hidden">
-            {visible.map((row) => {
+            {pageItems.map((row) => {
               const planBadge = PLAN_LIST_BADGE[row.planKey]
               return (
                 <Card key={row.id} className="p-4">
@@ -157,112 +170,137 @@ export function ClientsList({ rows }: { rows: ClientRow[] }) {
             })}
           </div>
 
-          {/* Desktop: table */}
+          {/* Desktop: table. El alto está topeado y el encabezado queda fijo,
+              así la fila que se está mirando siempre tiene sus columnas a la vista. */}
           <Card className="hidden overflow-hidden md:block">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100 bg-muted">
-                  <th
-                    scope="col"
-                    aria-sort={
-                      sort === 'asc' ? 'ascending' : sort === 'desc' ? 'descending' : 'none'
-                    }
-                    className="px-5 py-3 text-left font-semibold text-secondary-foreground"
-                  >
-                    <button
-                      type="button"
-                      onClick={cycleSort}
-                      className="inline-flex items-center gap-1.5 rounded transition hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            <div className="max-h-[70vh] overflow-y-auto overflow-x-hidden">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 z-10 bg-muted">
+                  <tr className="border-b border-slate-100">
+                    <th
+                      scope="col"
+                      aria-sort={
+                        sort === 'asc' ? 'ascending' : sort === 'desc' ? 'descending' : 'none'
+                      }
+                      className="px-5 py-3 text-left font-semibold text-secondary-foreground"
                     >
-                      Nombre
-                      <SortIcon sort={sort} className="size-3.5" />
-                    </button>
-                  </th>
-                  <th scope="col" className="px-5 py-3 text-left font-semibold text-secondary-foreground">
-                    Email
-                  </th>
-                  <th
-                    scope="col"
-                    className="hidden px-5 py-3 text-left font-semibold text-secondary-foreground lg:table-cell"
-                  >
-                    Objetivo
-                  </th>
-                  <th scope="col" className="px-5 py-3 text-left font-semibold text-secondary-foreground">
-                    Plan
-                  </th>
-                  <th scope="col" className="px-5 py-3 text-left font-semibold text-secondary-foreground">
-                    Estado
-                  </th>
-                  <th scope="col" className="px-5 py-3 text-left font-semibold text-secondary-foreground">
-                    Cuota
-                  </th>
-                  <th className="px-5 py-3" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {visible.map((row) => {
-                  const planBadge = PLAN_LIST_BADGE[row.planKey]
-                  return (
-                    <tr key={row.id} className="transition hover:bg-muted">
-                      <td className="px-5 py-3.5">
-                        <Link
-                          href={`/dashboard/clients/${row.id}`}
-                          className="font-medium text-slate-900 transition hover:text-primary"
-                        >
-                          {row.first_name} {row.last_name}
-                        </Link>
-                        {row.date_of_birth && (
-                          <p className="mt-0.5 text-xs text-muted-foreground">
-                            {fmtDate(row.date_of_birth)}
-                          </p>
-                        )}
-                      </td>
-                      <td className="px-5 py-3.5 text-secondary-foreground">
-                        {row.email ?? <span className="text-slate-300">—</span>}
-                      </td>
-                      <td className="hidden max-w-xs truncate px-5 py-3.5 text-secondary-foreground lg:table-cell">
-                        {row.goal ?? <span className="text-slate-300">—</span>}
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <Badge variant={planBadge.variant}>{planBadge.label}</Badge>
-                        {row.planEndDate && row.planKey !== 'none' && (
-                          <p className="mt-0.5 text-xs text-muted-foreground">
-                            vence {fmtShort(row.planEndDate)}
-                          </p>
-                        )}
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <Badge variant={row.active ? 'success' : 'neutral'}>
-                          {row.active ? 'Activo' : 'Inactivo'}
-                        </Badge>
-                      </td>
-                      <td className="px-5 py-3.5">
-                        {row.owedLabels.length === 0 ? (
-                          <span className="inline-flex items-center gap-1 rounded-lg bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700">
-                            <Check className="size-3" />
-                            Al día
-                          </span>
-                        ) : (
-                          <div>
-                            <span className="text-xs font-semibold text-destructive">
-                              Debe {row.owedLabels.length}{' '}
-                              {row.owedLabels.length === 1 ? 'mes' : 'meses'}
-                            </span>
-                            <p className="mt-0.5 max-w-40 text-xs leading-tight text-red-400">
-                              {row.owedLabels.join(', ')}
+                      <button
+                        type="button"
+                        onClick={cycleSort}
+                        className="inline-flex items-center gap-1.5 rounded transition hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        Nombre
+                        <SortIcon sort={sort} className="size-3.5" />
+                      </button>
+                    </th>
+                    <th
+                      scope="col"
+                      className="px-5 py-3 text-left font-semibold text-secondary-foreground"
+                    >
+                      Email
+                    </th>
+                    <th
+                      scope="col"
+                      className="hidden px-5 py-3 text-left font-semibold text-secondary-foreground lg:table-cell"
+                    >
+                      Objetivo
+                    </th>
+                    <th
+                      scope="col"
+                      className="px-5 py-3 text-left font-semibold text-secondary-foreground"
+                    >
+                      Plan
+                    </th>
+                    <th
+                      scope="col"
+                      className="px-5 py-3 text-left font-semibold text-secondary-foreground"
+                    >
+                      Estado
+                    </th>
+                    <th
+                      scope="col"
+                      className="px-5 py-3 text-left font-semibold text-secondary-foreground"
+                    >
+                      Cuota
+                    </th>
+                    <th className="px-5 py-3" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {pageItems.map((row) => {
+                    const planBadge = PLAN_LIST_BADGE[row.planKey]
+                    return (
+                      <tr key={row.id} className="transition hover:bg-muted">
+                        <td className="px-5 py-3.5">
+                          <Link
+                            href={`/dashboard/clients/${row.id}`}
+                            className="font-medium text-slate-900 transition hover:text-primary"
+                          >
+                            {row.first_name} {row.last_name}
+                          </Link>
+                          {row.date_of_birth && (
+                            <p className="mt-0.5 text-xs text-muted-foreground">
+                              {fmtDate(row.date_of_birth)}
                             </p>
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <ClientActions client={{ id: row.id, active: row.active }} />
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                          )}
+                        </td>
+                        <td className="px-5 py-3.5 text-secondary-foreground">
+                          {row.email ?? <span className="text-slate-300">—</span>}
+                        </td>
+                        <td className="hidden max-w-xs truncate px-5 py-3.5 text-secondary-foreground lg:table-cell">
+                          {row.goal ?? <span className="text-slate-300">—</span>}
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <Badge variant={planBadge.variant}>{planBadge.label}</Badge>
+                          {row.planEndDate && row.planKey !== 'none' && (
+                            <p className="mt-0.5 text-xs text-muted-foreground">
+                              vence {fmtShort(row.planEndDate)}
+                            </p>
+                          )}
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <Badge variant={row.active ? 'success' : 'neutral'}>
+                            {row.active ? 'Activo' : 'Inactivo'}
+                          </Badge>
+                        </td>
+                        <td className="px-5 py-3.5">
+                          {row.owedLabels.length === 0 ? (
+                            <span className="inline-flex items-center gap-1 rounded-lg bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700">
+                              <Check className="size-3" />
+                              Al día
+                            </span>
+                          ) : (
+                            <div>
+                              <span className="text-xs font-semibold text-destructive">
+                                Debe {row.owedLabels.length}{' '}
+                                {row.owedLabels.length === 1 ? 'mes' : 'meses'}
+                              </span>
+                              <p className="mt-0.5 max-w-40 text-xs leading-tight text-red-400">
+                                {row.owedLabels.join(', ')}
+                              </p>
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <ClientActions client={{ id: row.id, active: row.active }} />
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
           </Card>
+
+          <Pagination
+            page={page}
+            pageCount={pageCount}
+            total={total}
+            from={from}
+            to={to}
+            onPageChange={setPage}
+            label="alumnos"
+          />
         </>
       )}
     </div>
