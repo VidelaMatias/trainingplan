@@ -188,13 +188,14 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
                 techo, así que en desktop scrollea dentro de la tarjeta. En
                 mobile se deja fluir: la página ya scrollea. */}
             <div className="flex flex-wrap gap-2 md:max-h-56 md:overflow-y-auto md:overflow-x-hidden md:pr-1">
-              {monthsWithStatus.map(({ year, month, label, paid }) => (
+              {monthsWithStatus.map(({ year, month, label, paid, method }) => (
                 <PaymentToggle
                   key={`${year}-${month}`}
                   alumnoId={id}
                   year={year}
                   month={month}
                   paid={paid}
+                  method={method}
                   monthLabel={label}
                 />
               ))}

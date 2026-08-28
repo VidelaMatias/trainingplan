@@ -1,13 +1,34 @@
 import { createClient } from '@/lib/supabase/server'
+import { readAllRows, type PagedError } from '@/lib/supabase/paged'
 import type { PaymentRecord } from '@/types'
 
-const COLUMNS = 'alumno_id, year, month, paid, alumnos!inner(id)'
+const COLUMNS = 'alumno_id, year, month, paid, method, alumnos!inner(id)'
 
 type PaymentRow = PaymentRecord & { alumnos: unknown }
 
+// PostgREST says exactly what went wrong — a missing column, a rejected policy,
+// a malformed embed — in `code`/`message`/`details`. The Error thrown to the UI
+// only carries a Spanish line, so without logging the original first, a failure
+// like `42703: column payments.method does not exist` (a migration that never
+// ran) reaches the screen as an unexplained "Error al cargar los pagos".
+function payloadError(error: PagedError, at: string): Error {
+  console.error(`[payments] ${at} failed`, {
+    code: error.code,
+    message: error.message,
+    details: error.details,
+  })
+  return new Error('Error al cargar los pagos')
+}
+
 function toRecords(data: unknown): PaymentRecord[] {
   const rows = (data ?? []) as PaymentRow[]
-  return rows.map(({ alumno_id, year, month, paid }) => ({ alumno_id, year, month, paid }))
+  return rows.map(({ alumno_id, year, month, paid, method }) => ({
+    alumno_id,
+    year,
+    month,
+    paid,
+    method,
+  }))
 }
 
 // The !inner join forces every payment through the alumnos policy as well, so a
@@ -19,15 +40,44 @@ function toRecords(data: unknown): PaymentRecord[] {
 // list badges). For a single alumno use getPaymentsForClient.
 export async function getAllPayments(): Promise<PaymentRecord[]> {
   const supabase = await createClient()
-  const { data } = await supabase.from('payments').select(COLUMNS)
-  return toRecords(data)
+
+  const rows = await readAllRows(
+    ({ from, to, withCount }) =>
+      supabase
+        .from('payments')
+        .select(COLUMNS, withCount ? { count: 'exact' } : undefined)
+        // Only paid rows carry information: buildPaidIndex drops the rest, and
+        // unmarking a fee leaves a `paid = false` row behind.
+        .eq('paid', true)
+        // (alumno_id, year, month) is unique, so this is a total order: paging
+        // over it can neither skip nor repeat a row. Without it PostgREST
+        // returned rows in heap order, and marking a fee paid rewrote that row
+        // to the end of the heap — straight out of the first page, so the
+        // alumno came back as deudor.
+        .order('alumno_id')
+        .order('year')
+        .order('month')
+        .range(from, to),
+    // Silently returning [] here read as "nobody has paid anything", which is
+    // the same screen as a real debt — the failure has to be visible.
+    (error) => payloadError(error, 'getAllPayments'),
+  )
+
+  return toRecords(rows)
 }
 
 // One alumno's payments. The client detail page used to pull every payment row
 // in the database — ~2,400 at 100 alumnos — to render a 24-month grid for one
-// person. Served by the existing unique(alumno_id, year, month) index.
+// person. Served by the existing unique(alumno_id, year, month) index, and far
+// below max-rows, so this one needs no paging.
 export async function getPaymentsForClient(alumnoId: string): Promise<PaymentRecord[]> {
   const supabase = await createClient()
-  const { data } = await supabase.from('payments').select(COLUMNS).eq('alumno_id', alumnoId)
+  const { data, error } = await supabase
+    .from('payments')
+    .select(COLUMNS)
+    .eq('alumno_id', alumnoId)
+    .eq('paid', true)
+
+  if (error) throw payloadError(error, 'getPaymentsForClient')
   return toRecords(data)
 }

@@ -1,6 +1,8 @@
 // Shared domain types. Module-specific derived types live in each module's
 // own `types.ts` / `queries.ts`; only cross-cutting shapes belong here.
 
+import type { PaymentMethod } from '@/types/constants'
+
 // Every Server Action returns this discriminated union — it never throws to the
 // client. The UI always handles both branches.
 export type ActionResult<T> =
@@ -88,4 +90,7 @@ export interface PaymentRecord {
   year: number
   month: number
   paid: boolean
+  // Null on a fee recorded before the method column existed, and on every
+  // unpaid row — the database enforces the second case.
+  method: PaymentMethod | null
 }

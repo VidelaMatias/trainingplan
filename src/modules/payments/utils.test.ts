@@ -6,7 +6,13 @@ import {
   getAllMonthsWithStatus,
   getOwedMonths,
   monthLabel,
+  sharePercent,
+  sumTotals,
+  totalsByClient,
+  totalsByMethod,
+  totalsByMonth,
 } from '@/modules/payments/utils'
+import { PAYMENT_METHODS, type PaymentMethod } from '@/types/constants'
 import type { PaymentRecord } from '@/types'
 
 function freezeAt(isoInstant: string): void {
@@ -16,12 +22,21 @@ function freezeAt(isoInstant: string): void {
 // 2026-08-19 12:00 in Argentina.
 const MIDDAY = '2026-08-19T15:00:00Z'
 
-const paid = (alumno_id: string, year: number, month: number): PaymentRecord => ({
+const paid = (
+  alumno_id: string,
+  year: number,
+  month: number,
+  method: PaymentMethod | null = PAYMENT_METHODS.CASH,
+): PaymentRecord => ({
   alumno_id,
   year,
   month,
   paid: true,
+  method,
 })
+
+const cash = PAYMENT_METHODS.CASH
+const transfer = PAYMENT_METHODS.TRANSFER
 
 const key = (m: { year: number; month: number }) => `${m.year}-${m.month}`
 
@@ -32,12 +47,21 @@ afterEach(() => {
 describe('buildPaidIndex', () => {
   it('groups paid months per alumno', () => {
     const index = buildPaidIndex([paid('a', 2026, 6), paid('a', 2026, 7), paid('b', 2026, 6)])
-    assert.deepEqual([...(index.get('a') ?? [])], ['2026-6', '2026-7'])
-    assert.deepEqual([...(index.get('b') ?? [])], ['2026-6'])
+    assert.deepEqual([...(index.get('a')?.keys() ?? [])], ['2026-6', '2026-7'])
+    assert.deepEqual([...(index.get('b')?.keys() ?? [])], ['2026-6'])
+  })
+
+  it('keeps the method each month was collected with', () => {
+    const index = buildPaidIndex([paid('a', 2026, 6, transfer), paid('a', 2026, 7, null)])
+    assert.equal(index.get('a')?.get('2026-6'), transfer)
+    // Cobrada antes de que existiera la columna: paga, pero sin método. `has`
+    // y `get` responden preguntas distintas y el null no puede leerse como impaga.
+    assert.equal(index.get('a')?.has('2026-7'), true)
+    assert.equal(index.get('a')?.get('2026-7'), null)
   })
 
   it('ignores rows recorded as unpaid', () => {
-    const index = buildPaidIndex([{ alumno_id: 'a', year: 2026, month: 6, paid: false }])
+    const index = buildPaidIndex([{ alumno_id: 'a', year: 2026, month: 6, paid: false, method: null }])
     assert.equal(index.get('a'), undefined)
   })
 
@@ -125,5 +149,140 @@ describe('monthLabel', () => {
 
   it('includes the year for any other year', () => {
     assert.equal(monthLabel(2025, 12, 2026), 'diciembre 2025')
+  })
+})
+
+describe('totalsByMethod', () => {
+  it('counts fees per method and totals them', () => {
+    const totals = totalsByMethod([
+      paid('a', 2026, 6, cash),
+      paid('a', 2026, 7, transfer),
+      paid('b', 2026, 6, cash),
+      paid('b', 2026, 7, null),
+    ])
+    assert.deepEqual(totals, { cash: 2, transfer: 1, unspecified: 1, total: 4 })
+  })
+
+  it('leaves unpaid rows out of the report', () => {
+    const totals = totalsByMethod([
+      paid('a', 2026, 6, cash),
+      { alumno_id: 'a', year: 2026, month: 7, paid: false, method: null },
+    ])
+    assert.deepEqual(totals, { cash: 1, transfer: 0, unspecified: 0, total: 1 })
+  })
+
+  it('is all zeros with nothing collected', () => {
+    assert.deepEqual(totalsByMethod([]), { cash: 0, transfer: 0, unspecified: 0, total: 0 })
+  })
+})
+
+describe('totalsByMonth', () => {
+  it('runs most-recent-first from the current month', () => {
+    freezeAt(MIDDAY)
+    const rows = totalsByMonth([], 3)
+    assert.deepEqual(
+      rows.map((r) => `${r.year}-${r.month}`),
+      ['2026-8', '2026-7', '2026-6'],
+    )
+  })
+
+  it('shows months with no collection as zero instead of dropping them', () => {
+    freezeAt(MIDDAY)
+    const rows = totalsByMonth([paid('a', 2026, 8, cash)], 3)
+    assert.deepEqual(rows.map((r) => r.total), [1, 0, 0])
+  })
+
+  it('ignores fees outside the window', () => {
+    freezeAt(MIDDAY)
+    const rows = totalsByMonth([paid('a', 2025, 1, cash), paid('a', 2026, 8, transfer)], 3)
+    assert.deepEqual(rows[0], {
+      year: 2026, month: 8, label: 'agosto', cash: 0, transfer: 1, unspecified: 0, total: 1,
+    })
+    assert.equal(rows.reduce((n, r) => n + r.total, 0), 1)
+  })
+
+  it('crosses the year boundary backwards', () => {
+    freezeAt('2026-01-15T15:00:00Z')
+    const rows = totalsByMonth([], 3)
+    assert.deepEqual(
+      rows.map((r) => `${r.year}-${r.month}`),
+      ['2026-1', '2025-12', '2025-11'],
+    )
+    // El año se muestra en las etiquetas de meses que no son del año actual.
+    assert.deepEqual(rows.map((r) => r.label), ['enero', 'diciembre 2025', 'noviembre 2025'])
+  })
+})
+
+describe('totalsByClient', () => {
+  const clients = [
+    { id: 'a', first_name: 'Ana', last_name: 'Diaz' },
+    { id: 'b', first_name: 'Beto', last_name: 'Cruz' },
+  ]
+
+  it('sorts by fees collected, then by name', () => {
+    const rows = totalsByClient(
+      [paid('b', 2026, 6, cash), paid('a', 2026, 6, cash), paid('a', 2026, 7, transfer)],
+      clients,
+    )
+    assert.deepEqual(rows.map((r) => [r.name, r.total]), [['Ana Diaz', 2], ['Beto Cruz', 1]])
+    assert.deepEqual(rows[0], {
+      id: 'a', name: 'Ana Diaz', cash: 1, transfer: 1, unspecified: 0, total: 2,
+    })
+  })
+
+  it('leaves out alumnos with nothing collected', () => {
+    const rows = totalsByClient([paid('a', 2026, 6, cash)], clients)
+    assert.deepEqual(rows.map((r) => r.id), ['a'])
+  })
+
+  it('drops payments whose alumno is not in the list', () => {
+    // Si no, la fila saldría con el nombre en blanco.
+    assert.deepEqual(totalsByClient([paid('zz', 2026, 6, cash)], clients), [])
+  })
+})
+
+describe('sharePercent', () => {
+  it('rounds to a whole percent', () => {
+    assert.equal(sharePercent(1, 3), 33)
+    assert.equal(sharePercent(2, 3), 67)
+  })
+
+  it('is 0 rather than NaN when nothing was collected', () => {
+    assert.equal(sharePercent(0, 0), 0)
+  })
+})
+
+describe('sumTotals', () => {
+  it('folds the monthly rows into the legend that sits under them', () => {
+    freezeAt(MIDDAY)
+    // La leyenda del bloque mensual recibía los totales de TODO el historial,
+    // así que las barras sumaban una cosa y el renglón de abajo otra.
+    const payments = [
+      paid('a', 2026, 8, cash),
+      paid('a', 2026, 7, transfer),
+      paid('a', 2020, 1, cash), // fuera de la ventana de 12 meses
+    ]
+    const monthly = totalsByMonth(payments, 12)
+    assert.deepEqual(sumTotals(monthly), { cash: 1, transfer: 1, unspecified: 0, total: 2 })
+    // El total de todo el historial sí incluye la de 2020: son números distintos
+    // a propósito, y por eso no se pueden intercambiar.
+    assert.equal(totalsByMethod(payments).total, 3)
+  })
+
+  it('is all zeros for no rows', () => {
+    assert.deepEqual(sumTotals([]), { cash: 0, transfer: 0, unspecified: 0, total: 0 })
+  })
+})
+
+describe('totalsByMethod con datos fuera de contrato', () => {
+  it('does not lose a fee whose method the app does not know', () => {
+    // Sólo puede venir de una fila escrita por fuera de la app. Cae en
+    // "Sin especificar", pero no puede desaparecer del total: si no, las
+    // columnas del reporte dejan de sumar al tile que está arriba.
+    const rogue = { alumno_id: 'a', year: 2026, month: 6, paid: true, method: 'crypto' }
+    const totals = totalsByMethod([rogue as unknown as PaymentRecord, paid('a', 2026, 7, cash)])
+    assert.equal(totals.total, 2)
+    assert.equal(totals.cash + totals.transfer + totals.unspecified, totals.total)
+    assert.equal(totals.unspecified, 1)
   })
 })

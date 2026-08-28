@@ -124,9 +124,18 @@ create table public.payments (
   year       int not null,
   month      int not null check (month between 1 and 12),
   paid       boolean default false not null,
+  -- Cómo se cobró. Los valores viven también en src/types/constants.ts
+  -- (PAYMENT_METHODS); el check es la red del lado de la base.
+  -- Null significa "cobrada antes de que existiera esta columna": las bases
+  -- nuevas nunca lo tienen, pero el reporte lo sigue contemplando.
+  method     text check (method is null or method in ('cash', 'transfer')),
   paid_at    timestamp with time zone,
   created_at timestamp with time zone default now() not null,
-  unique(alumno_id, year, month)
+  unique(alumno_id, year, month),
+  -- Una cuota impaga no puede arrastrar un método: si no se cobró, no se cobró
+  -- de ninguna manera. Sin esto, desmarcar dejaba un cobro fantasma contado en
+  -- el reporte de métodos de pago.
+  constraint payments_method_requires_paid check (paid or method is null)
 );
 
 alter table public.payments enable row level security;
@@ -153,6 +162,11 @@ create index if not exists training_plans_alumno_id_idx  on public.training_plan
 create index if not exists training_plans_created_by_idx on public.training_plans (created_by);
 create index if not exists training_plan_weeks_plan_id_idx on public.training_plan_weeks (plan_id);
 
+-- El reporte de métodos de pago agrupa por `method` sobre las cuotas cobradas.
+-- El índice parcial cubre esa lectura y deja fuera las impagas, que son las que
+-- más se acumulan.
+create index if not exists payments_method_idx on public.payments (method) where paid;
+
 -- Sin semanas duplicadas dentro de un plan.
 create unique index if not exists training_plan_weeks_plan_week_uniq
   on public.training_plan_weeks (plan_id, week_number);
@@ -163,6 +177,18 @@ create unique index if not exists training_plan_weeks_plan_week_uniq
 -- para que un fallo a mitad de camino no deje el plan sin semanas.
 -- El cuerpo vive en add_plan_rpc.sql: pegar y correr ESE archivo a
 -- continuación de éste. Sin él, crear o editar planes falla.
+-- ============================================================
+
+-- ============================================================
+-- 6b. Migraciones incrementales ya incorporadas acá arriba
+-- Este archivo describe el esquema COMPLETO, así que una base creada con él no
+-- necesita correr add_payment_method.sql (la columna `method`, sus checks y su
+-- índice ya están en la tabla de arriba). Los archivos add_*.sql / fix_*.sql
+-- existen para las bases que se construyeron de forma incremental.
+--
+-- La excepción es add_plan_rpc.sql (ver punto 6): ése SÍ hay que correrlo
+-- siempre, junto con fix_empty_plan_weeks.sql, que lo reemplaza con el guard
+-- que impide dejar un plan sin semanas.
 -- ============================================================
 
 -- ============================================================

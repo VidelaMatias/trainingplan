@@ -1,11 +1,11 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { AlertCircle, ChevronDown, FileSpreadsheet, Info, Pencil, Send, Trash2 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Spinner } from '@/components/ui/Spinner'
 import { cn } from '@/lib/utils'
@@ -27,7 +27,6 @@ interface PlanCardProps {
 }
 
 export function PlanCard({ plan, clientId, clientRhythmNotes, whatsappUrl }: PlanCardProps) {
-  const router = useRouter()
   const [expanded, setExpanded] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [loadingDelete, setLoadingDelete] = useState(false)
@@ -219,15 +218,20 @@ export function PlanCard({ plan, clientId, clientRhythmNotes, whatsappUrl }: Pla
             {loadingSend ? <Spinner className="size-4 text-emerald-600" /> : <Send />}
           </Button>
 
-          <Button
-            variant="ghost"
-            size="icon-sm"
+          {/* Ver ClientActions: con router.push no había ni prefetch ni
+              esqueleto, y editar un plan largo dejaba el botón sin respuesta
+              varios segundos. */}
+          <Link
+            href={`/dashboard/clients/${clientId}/plans/${plan.id}/edit`}
             title="Editar"
-            onClick={() => router.push(`/dashboard/clients/${clientId}/plans/${plan.id}/edit`)}
-            className="text-muted-foreground hover:bg-accent hover:text-primary"
+            aria-label={`Editar ${plan.title}`}
+            className={cn(
+              buttonVariants({ variant: 'ghost', size: 'icon-sm' }),
+              'text-muted-foreground hover:bg-accent hover:text-primary',
+            )}
           >
             <Pencil />
-          </Button>
+          </Link>
 
           {!confirmDelete ? (
             <Button

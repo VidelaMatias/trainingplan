@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth/guards'
 import { paymentSchema } from '@/types/schemas'
+import type { PaymentMethod } from '@/types/constants'
 import type { ActionResult } from '@/types'
 
 export async function setPayment(
@@ -11,11 +12,21 @@ export async function setPayment(
   year: number,
   month: number,
   paid: boolean,
+  method: PaymentMethod | null,
 ): Promise<ActionResult<null>> {
   const auth = await requireAuth()
   if (!auth) return { data: null, error: 'No autorizado' }
 
-  const parsed = paymentSchema.safeParse({ alumno_id: alumnoId, year, month, paid })
+  // Unmarking clears the method rather than trusting the caller to send null:
+  // a fee that was not collected was not collected in any way, and the database
+  // rejects the pair anyway (payments_method_requires_paid).
+  const parsed = paymentSchema.safeParse({
+    alumno_id: alumnoId,
+    year,
+    month,
+    paid,
+    method: paid ? method : null,
+  })
   if (!parsed.success) return { data: null, error: parsed.error.issues[0].message }
 
   const supabase = await createClient()
@@ -34,6 +45,9 @@ export async function setPayment(
       year,
       month,
       paid,
+      // Written from the validated payload, not the raw argument: that is where
+      // the "unpaid clears the method" rule was applied.
+      method: parsed.data.method,
       paid_at: paid ? new Date().toISOString() : null,
     },
     { onConflict: 'alumno_id,year,month' },
@@ -41,6 +55,7 @@ export async function setPayment(
   if (error) return { data: null, error: 'No se pudo actualizar el pago' }
 
   revalidatePath('/dashboard')
+  revalidatePath('/dashboard/payments')
   revalidatePath('/dashboard/clients')
   revalidatePath(`/dashboard/clients/${alumnoId}`)
   return { data: null, error: null }

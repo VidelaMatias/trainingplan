@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { changePasswordSchema, clientSchema, planIdSchema, planSchema } from '@/types/schemas'
+import { changePasswordSchema, clientSchema, paymentSchema, planIdSchema, planSchema } from '@/types/schemas'
+import { PAYMENT_METHODS } from '@/types/constants'
 
 function week(overrides: Record<string, unknown> = {}) {
   return {
@@ -42,6 +43,27 @@ describe('planSchema', () => {
 
   it('requires at least one week', () => {
     assert.equal(planSchema.safeParse(plan({ weeks: [] })).success, false)
+  })
+
+  const blankWeek = () =>
+    week({ monday: null, tuesday: null, wednesday: null, thursday: null, friday: null, saturday: null, sunday: null })
+
+  it('rejects a plan with no session in any week', () => {
+    // Counting week rows was not enough: every cell of a week row may be null,
+    // so a submit with nothing typed used to save an entirely empty grid — and
+    // on edit it replaced a plan that did have content.
+    const result = planSchema.safeParse(plan({ weeks: [blankWeek(), blankWeek()] }))
+    assert.equal(result.success, false)
+    assert.match(result.error!.issues[0].message, /ninguna sesión/)
+  })
+
+  it('still allows a blank rest week alongside a week with content', () => {
+    assert.equal(planSchema.safeParse(plan({ weeks: [week(), blankWeek()] })).success, true)
+  })
+
+  it('treats a whitespace-only cell as empty', () => {
+    // dayCell collapses '   ' to null, so it must not pass as content either.
+    assert.equal(planSchema.safeParse(plan({ weeks: [week({ monday: '   ' })] })).success, false)
   })
 
   it('caps the number of weeks', () => {
@@ -207,5 +229,51 @@ describe('changePasswordSchema', () => {
     })
     assert.equal(result.success, false)
     assert.equal(result.error!.issues[0].message, 'La nueva contraseña debe ser distinta de la actual')
+  })
+})
+
+describe('paymentSchema', () => {
+  const payment = (overrides: Record<string, unknown> = {}) => ({
+    alumno_id: '3f1c8a2e-9b4d-4c6a-8e1f-0d7b5a2c9e34',
+    year: 2026,
+    month: 8,
+    paid: true,
+    method: PAYMENT_METHODS.CASH,
+    ...overrides,
+  })
+
+  it('accepts a fee collected in cash or by transfer', () => {
+    assert.equal(paymentSchema.safeParse(payment()).success, true)
+    assert.equal(
+      paymentSchema.safeParse(payment({ method: PAYMENT_METHODS.TRANSFER })).success,
+      true,
+    )
+  })
+
+  it('rejects a method it does not know', () => {
+    assert.equal(paymentSchema.safeParse(payment({ method: 'crypto' })).success, false)
+  })
+
+  it('requires a method when the fee is marked paid', () => {
+    // Sin esto la cuota caía en "Sin especificar", que está reservado para las
+    // filas anteriores a la migración.
+    const result = paymentSchema.safeParse(payment({ method: null }))
+    assert.equal(result.success, false)
+    assert.match(result.error!.issues[0].message, /cómo se cobró/)
+  })
+
+  it('rejects a method on an unpaid fee', () => {
+    const result = paymentSchema.safeParse(payment({ paid: false }))
+    assert.equal(result.success, false)
+    assert.match(result.error!.issues[0].message, /impaga/)
+  })
+
+  it('accepts an unpaid fee with no method', () => {
+    assert.equal(paymentSchema.safeParse(payment({ paid: false, method: null })).success, true)
+  })
+
+  it('rejects a month outside 1..12', () => {
+    assert.equal(paymentSchema.safeParse(payment({ month: 0 })).success, false)
+    assert.equal(paymentSchema.safeParse(payment({ month: 13 })).success, false)
   })
 })

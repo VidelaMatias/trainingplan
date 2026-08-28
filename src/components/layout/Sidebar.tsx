@@ -7,6 +7,7 @@ import { Code2, LogOut, Zap } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { logout } from '@/modules/auth/actions'
 import { NAV_ITEMS, isNavActive } from '@/components/layout/nav-items'
+import { NavIcon } from '@/components/layout/NavIcon'
 
 export function Sidebar({ userEmail }: { userEmail: string }) {
   const pathname = usePathname()
@@ -38,7 +39,7 @@ export function Sidebar({ userEmail }: { userEmail: string }) {
                 active ? 'bg-primary text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white',
               )}
             >
-              <Icon className="size-5" />
+              <NavIcon icon={Icon} className="size-5" />
               {item.label}
             </Link>
           )

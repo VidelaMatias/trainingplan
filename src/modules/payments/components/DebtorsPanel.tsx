@@ -61,6 +61,9 @@ export function DebtorsPanel({ debtors }: { debtors: DebtorRow[] }) {
                   year={year}
                   month={month}
                   paid={false}
+                  // Un mes adeudado no tiene método por definición: el chip
+                  // pregunta cuál al marcarlo.
+                  method={null}
                   monthLabel={label}
                 />
               ))}

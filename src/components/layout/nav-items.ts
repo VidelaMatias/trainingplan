@@ -1,4 +1,4 @@
-import { Home, UserCog, Users, type LucideIcon } from 'lucide-react'
+import { Home, UserCog, Users, Wallet, type LucideIcon } from 'lucide-react'
 
 export interface NavItem {
   href: string
@@ -13,6 +13,10 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard', label: 'Inicio', icon: Home, exact: true },
   { href: '/dashboard/clients', label: 'Alumnos', icon: Users, exact: false },
+  // Sin esta entrada, /dashboard/payments no activaba ningún ítem —la barra no
+  // indicaba dónde estaba parado el usuario— y en mobile, donde la barra
+  // inferior es la navegación principal, el único acceso era el tile del panel.
+  { href: '/dashboard/payments', label: 'Pagos', icon: Wallet, exact: true },
   { href: '/dashboard/account', label: 'Cuenta', icon: UserCog, exact: true },
 ]
 

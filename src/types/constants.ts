@@ -1,6 +1,8 @@
 // Central catalog of enum-like values and their Spanish UI metadata. Never use
 // raw strings like 'active' in logic — reference these instead.
 
+import { ArrowLeftRight, Banknote, HelpCircle, type LucideIcon } from 'lucide-react'
+
 import type { BadgeVariant } from '@/components/ui/badge'
 
 // Todas las fechas del dominio (inicio/fin de plan, meses de cuota) son fechas
@@ -86,6 +88,73 @@ export const CLIENT_FILTER_META: Record<ClientFilter, { title: string; empty: st
     empty: 'Todos los alumnos están al día',
   },
 }
+
+// Cómo se cobró una cuota. Las keys son los valores que viajan a la columna
+// `payments.method` (ver add_payment_method.sql), así que renombrarlas obliga a
+// migrar los datos.
+export const PAYMENT_METHODS = {
+  CASH: 'cash',
+  TRANSFER: 'transfer',
+} as const
+
+export type PaymentMethod = (typeof PAYMENT_METHODS)[keyof typeof PAYMENT_METHODS]
+
+// El orden es el de los botones al marcar una cuota como pagada.
+export const PAYMENT_METHOD_LIST: PaymentMethod[] = [
+  PAYMENT_METHODS.CASH,
+  PAYMENT_METHODS.TRANSFER,
+]
+
+// `unspecified` no es una forma de cobrar: es el resto. Cae acá una cuota
+// cobrada antes de que existiera la columna y, por defensa en runtime, una con
+// un método que esta versión no conoce — la columna tiene un check, pero una
+// fila escrita por fuera de la app no puede desaparecer del total.
+export const UNSPECIFIED_METHOD = 'unspecified'
+
+// Las columnas del reporte: los métodos reales y, al final, el resto. Agregar
+// un método a PAYMENT_METHODS lo suma acá y rompe METHOD_META hasta que se le
+// dé etiqueta y color, que es exactamente el recordatorio que se quiere.
+export type MethodBucket = PaymentMethod | typeof UNSPECIFIED_METHOD
+
+export const METHOD_BUCKETS: MethodBucket[] = [...PAYMENT_METHOD_LIST, UNSPECIFIED_METHOD]
+
+// Etiqueta y colores de cada columna del reporte. Un solo lugar: antes el gris
+// de "Sin especificar" estaba escrito a mano en la barra y otra vez en su punto
+// de la leyenda, y cambiar uno dejaba la leyenda nombrando un color que ya no
+// existía en el gráfico.
+export const METHOD_META: Record<
+  MethodBucket,
+  { label: string; icon: LucideIcon; barClassName: string; textClassName: string }
+> = {
+  [PAYMENT_METHODS.CASH]: {
+    label: 'Efectivo',
+    icon: Banknote,
+    barClassName: 'bg-green-500',
+    textClassName: 'text-green-700',
+  },
+  [PAYMENT_METHODS.TRANSFER]: {
+    label: 'Transferencia',
+    icon: ArrowLeftRight,
+    barClassName: 'bg-blue-500',
+    textClassName: 'text-blue-700',
+  },
+  [UNSPECIFIED_METHOD]: {
+    label: 'Sin especificar',
+    icon: HelpCircle,
+    barClassName: 'bg-slate-300',
+    textClassName: 'text-muted-foreground',
+  },
+}
+
+// Colores del chip al elegir cómo se cobró. Separado de METHOD_META porque sólo
+// aplica a los métodos reales — no hay un botón "Sin especificar".
+export const PAYMENT_METHOD_CHIP: Record<PaymentMethod, string> = {
+  [PAYMENT_METHODS.CASH]: 'bg-green-100 text-green-700 hover:bg-green-200',
+  [PAYMENT_METHODS.TRANSFER]: 'bg-blue-100 text-blue-700 hover:bg-blue-200',
+}
+
+// Meses que abarca el desglose mensual del reporte de métodos de pago.
+export const METHOD_REPORT_MONTHS = 12
 
 export const DEFAULT_RHYTHM_NOTES = `Ritmo U (Umbral de lactato): 3:15 a 3:20 x mil
 Ritmo S/L (Suave/Largo): 4:30 a 5:10 x mil (si estás muy agotado ó fondo de semana POST DÍA INTENSO mas despacio)

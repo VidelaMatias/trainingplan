@@ -7,6 +7,7 @@ import { LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { logout } from '@/modules/auth/actions'
 import { NAV_ITEMS, isNavActive } from '@/components/layout/nav-items'
+import { NavIcon } from '@/components/layout/NavIcon'
 
 export function MobileNav() {
   const pathname = usePathname()
@@ -25,7 +26,7 @@ export function MobileNav() {
               active ? 'text-primary' : 'text-muted-foreground hover:text-secondary-foreground',
             )}
           >
-            <Icon className="size-6" />
+            <NavIcon icon={Icon} className="size-6" />
             {item.label}
           </Link>
         )

@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Pencil, Power, Trash2 } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/Spinner'
 import { cn } from '@/lib/utils'
 import { deleteClientAction, toggleClientActive } from '@/modules/clients/actions'
@@ -15,7 +15,6 @@ import type { Client } from '@/types'
 type ClientActionsTarget = Pick<Client, 'id' | 'active'>
 
 export function ClientActions({ client }: { client: ClientActionsTarget }) {
-  const router = useRouter()
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [togglePending, startToggle] = useTransition()
@@ -48,15 +47,22 @@ export function ClientActions({ client }: { client: ClientActionsTarget }) {
           {error}
         </span>
       )}
-      <Button
-        variant="ghost"
-        size="icon-sm"
+      {/* Un Link y no un router.push: éste prefetchea la ruta y su loading.tsx,
+          así el esqueleto del formulario aparece apenas se hace click. Con el
+          push no había prefetch ni fallback y el botón quedaba mudo hasta que
+          llegaba la página entera. De paso vuelven a funcionar cmd+click y
+          "abrir en una pestaña nueva". */}
+      <Link
+        href={`/dashboard/clients/${client.id}/edit`}
         title="Editar"
-        onClick={() => router.push(`/dashboard/clients/${client.id}/edit`)}
-        className="text-muted-foreground hover:bg-accent hover:text-primary"
+        aria-label="Editar alumno"
+        className={cn(
+          buttonVariants({ variant: 'ghost', size: 'icon-sm' }),
+          'text-muted-foreground hover:bg-accent hover:text-primary',
+        )}
       >
         <Pencil />
-      </Button>
+      </Link>
 
       <Button
         variant="ghost"

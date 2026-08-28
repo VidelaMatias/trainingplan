@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { MAX_OBJECTIVES } from '@/types/constants'
+import { DAYS, MAX_OBJECTIVES, PAYMENT_METHODS } from '@/types/constants'
 
 // Optional free-text field coming from FormData: '' / null / whitespace all
 // normalize to null so the DB stores a clean absence instead of empty strings.
@@ -151,7 +151,17 @@ export const planSchema = z.object({
   weeks: z
     .array(planWeekSchema)
     .min(1, 'El plan debe tener al menos una semana')
-    .max(104, 'El plan tiene demasiadas semanas'),
+    .max(104, 'El plan tiene demasiadas semanas')
+    // `min(1)` only counted week rows, and a week row is valid with all seven
+    // cells null — so a submit with nothing typed saved a plan whose grid was
+    // entirely empty, with no error and no warning. On edit it was worse: the
+    // update replaces the whole week set, so an accidental empty submit wiped
+    // a plan that already had content. A rest week stays legal; a plan with
+    // nothing in any of its weeks does not.
+    .refine(
+      (weeks) => weeks.some((w) => DAYS.some(({ key }) => w[key] !== null)),
+      'El plan no tiene ninguna sesión cargada',
+    ),
 })
 
 // z.uuid() rather than the z.string().uuid() used elsewhere in this file: the
@@ -159,12 +169,28 @@ export const planSchema = z.object({
 // they're left as-is rather than folded into an unrelated change.
 export const planIdSchema = z.uuid('Plan inválido')
 
-export const paymentSchema = z.object({
-  alumno_id: z.string().uuid('Alumno inválido'),
-  year: z.number().int().min(2000).max(2100),
-  month: z.number().int().min(1).max(12),
-  paid: z.boolean(),
-})
+export const paymentSchema = z
+  .object({
+    alumno_id: z.string().uuid('Alumno inválido'),
+    year: z.number().int().min(2000).max(2100),
+    month: z.number().int().min(1).max(12),
+    paid: z.boolean(),
+    // Nullable rather than optional: unmarking a fee has to clear the method,
+    // so the absence is a value the caller states explicitly.
+    method: z.enum(PAYMENT_METHODS).nullable(),
+  })
+  // Marking a fee paid without saying how would land in the report as
+  // "Sin especificar", which is reserved for rows predating the column.
+  .refine((d) => !d.paid || d.method !== null, {
+    message: 'Elegí cómo se cobró la cuota',
+    path: ['method'],
+  })
+  // The database has the mirror of this check; keeping it here turns a
+  // constraint violation into a message the UI can show.
+  .refine((d) => d.paid || d.method === null, {
+    message: 'Una cuota impaga no lleva método de pago',
+    path: ['method'],
+  })
 
 export type LoginInput = z.infer<typeof loginSchema>
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>

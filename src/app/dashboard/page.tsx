@@ -1,7 +1,8 @@
 import Link from 'next/link'
-import { ChevronRight, Plus, Users } from 'lucide-react'
+import { Plus, Users, Wallet } from 'lucide-react'
 
 import { buttonVariants } from '@/components/ui/button'
+import { StatTile } from '@/components/ui/stat-tile'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/server'
 import { todayISO } from '@/lib/date'
@@ -75,7 +76,7 @@ export default async function DashboardPage() {
         <p className="mt-1 text-sm text-muted-foreground">{user?.email}</p>
       </div>
 
-      <div className="mb-6 grid grid-cols-2 gap-3 md:mb-8 md:grid-cols-3 md:gap-4 xl:grid-cols-5">
+      <div className="mb-6 grid grid-cols-2 gap-3 md:mb-8 md:grid-cols-3 md:gap-4 xl:grid-cols-6">
         {/* Cada tile abre la lista de alumnos ya filtrada por lo que cuenta. */}
         <StatTile label="Alumnos" value={clients.length} href="/dashboard/clients" />
         <StatTile
@@ -102,6 +103,16 @@ export default async function DashboardPage() {
           href={`/dashboard/clients?filter=${CLIENT_FILTERS.DEBTORS}`}
           highlight={debtors.length > 0 ? 'red' : undefined}
         />
+        {/* getAllPayments ya devuelve sólo las cuotas cobradas, así que el
+            total del tile es exactamente el universo que desglosa el reporte:
+            los dos números no pueden discrepar. */}
+        <StatTile
+          label="Métodos de pago"
+          value={payments.length}
+          href="/dashboard/payments"
+          icon={Wallet}
+          valueClassName="text-primary"
+        />
       </div>
 
       {expiringRows.length > 0 && <ExpiringPlansPanel plans={expiringRows} />}
@@ -119,53 +130,5 @@ export default async function DashboardPage() {
         </Link>
       </div>
     </div>
-  )
-}
-
-// A whole tile is one link: the number is the headline, and following it opens
-// the list of exactly the alumnos that number counts.
-function StatTile({
-  label,
-  value,
-  href,
-  valueClassName,
-  highlight,
-}: {
-  label: string
-  value: number
-  href: string
-  valueClassName?: string
-  highlight?: 'amber' | 'red'
-}) {
-  return (
-    <Link
-      href={href}
-      className={cn(
-        // Más compactos en mobile: cinco tiles a p-5 empujaban todo el panel
-        // debajo del pliegue antes de mostrar un solo dato.
-        'group block rounded-xl border p-3 transition hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:p-5',
-        highlight === 'amber' && 'border-amber-200 bg-amber-50 hover:border-amber-300',
-        highlight === 'red' && 'border-red-200 bg-red-50 hover:border-red-300',
-        !highlight && 'border-border bg-card hover:border-primary/40',
-      )}
-    >
-      <p className="flex items-center gap-1 text-xs font-medium uppercase text-muted-foreground">
-        {label}
-        <ChevronRight
-          className="size-3.5 shrink-0 opacity-0 transition group-hover:opacity-100"
-          aria-hidden
-        />
-      </p>
-      <p
-        className={cn(
-          'mt-0.5 text-2xl font-bold text-slate-900 md:mt-1 md:text-3xl',
-          valueClassName,
-          highlight === 'amber' && 'text-amber-600',
-          highlight === 'red' && 'text-destructive',
-        )}
-      >
-        {value}
-      </p>
-    </Link>
   )
 }
