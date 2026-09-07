@@ -127,9 +127,12 @@ export function PaymentToggle({
   // cuota impaga el click ya no marca nada, abre la elección de método. Decía
   // "Marcar agosto como pagado" mientras el aria-label del mismo botón decía
   // otra cosa.
+  // El mes abre la frase en vez de quedar incrustado: MONTH_NAMES los escribe con
+  // mayúscula inicial, y «Elegir cómo se cobró Agosto» dejaba una mayúscula a
+  // mitad de oración que ningún estilo puede corregir.
   const tooltip = state.paid
     ? `${methodMeta?.label} · click para desmarcar`
-    : `Elegir cómo se cobró ${label}`
+    : `${label}: elegir cómo se cobró`
 
   return (
     <div className="group/tooltip relative inline-flex">

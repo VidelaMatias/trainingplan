@@ -9,6 +9,7 @@ import {
   PLAN_STATUS,
   type ClientFilter,
 } from '@/types/constants'
+import { compareText } from '@/lib/text'
 import { getPlanStatus, isExpiringWithin } from '@/modules/plans/utils'
 
 export interface SearchableClient {
@@ -43,14 +44,11 @@ export function matchesTokens(haystack: string, tokens: string[]): boolean {
   return tokens.every((token) => haystack.includes(token))
 }
 
-// Spanish collation: accents don't reorder names and ñ sorts after n.
-const nameCollator = new Intl.Collator('es', { sensitivity: 'base' })
-
+// Ordena por «nombre apellido» con la colación española compartida (ver
+// lib/text): el mismo par de alumnos queda en el mismo orden acá y en el
+// reporte de métodos de pago, que ordena los mismos nombres.
 export function compareByName(a: SearchableClient, b: SearchableClient): number {
-  return nameCollator.compare(
-    `${a.first_name} ${a.last_name}`,
-    `${b.first_name} ${b.last_name}`,
-  )
+  return compareText(`${a.first_name} ${a.last_name}`, `${b.first_name} ${b.last_name}`)
 }
 
 // ── Ritmos de referencia ────────────────────────────────────────────────────

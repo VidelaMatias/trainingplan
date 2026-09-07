@@ -2,11 +2,14 @@ import {
   METHOD_BUCKETS,
   METHOD_REPORT_MONTHS,
   MONTH_NAMES,
+  OWED_PREVIEW_MONTHS,
+  PAYMENT_METHODS,
   UNSPECIFIED_METHOD,
   type MethodBucket,
   type PaymentMethod,
 } from '@/types/constants'
 import { instantToISODate, todayISO, yearMonthOf } from '@/lib/date'
+import { compareText } from '@/lib/text'
 import type { PaymentRecord } from '@/types'
 
 export interface OwedMonth {
@@ -61,6 +64,20 @@ export function getOwedMonths(
   paid: PaidIndex,
 ): OwedMonth[] {
   return buildMonthTimeline(createdAt, alumnoId, paid).filter((m) => !m.paid)
+}
+
+// Los meses adeudados en una sola línea, acotada. getOwedMonths no tiene tope:
+// camina desde el alta del alumno hasta hoy, así que uno de 2023 que nunca pagó
+// devuelve treinta y pico de etiquetas. Enumerarlas todas en la celda «Cuota»
+// hacía crecer esa fila hasta varias pantallas de alto y rompía la tabla; acá se
+// nombran las más viejas —que son las que dicen desde cuándo viene la deuda— y el
+// resto se cuenta.
+//
+// Se recorta sólo cuando ahorra más de un mes: «enero, febrero, marzo +1 más»
+// ocupa lo mismo que nombrar los cuatro y dice menos.
+export function owedSummary(labels: string[], limit: number = OWED_PREVIEW_MONTHS): string {
+  if (labels.length <= limit + 1) return labels.join(', ')
+  return `${labels.slice(0, limit).join(', ')} +${labels.length - limit} más`
 }
 
 // Same timeline as getOwedMonths, but every month carries its paid flag and the
@@ -257,9 +274,22 @@ export function totalsByClient(
     addTo(row, p.method)
   }
 
-  return [...rows.values()].sort(
-    (a, b) => b.total - a.total || a.name.localeCompare(b.name, 'es'),
-  )
+  // compareText y no name.localeCompare: la lista de alumnos ordena estos mismos
+  // nombres con una colación que ignora acentos, y dos criterios distintos ponían
+  // a «Alvarez» y «Álvarez» en un orden acá y en el otro allá.
+  return [...rows.values()].sort((a, b) => b.total - a.total || compareText(a.name, b.name))
+}
+
+// Ordena dos filas por su proporción de efectivo, comparando a*d contra c*b en
+// vez de restar dos sharePercent: ese redondea a entero, así que 17/50 (34,0 %) y
+// 27/80 (33,75 %) empataban y caían al desempate alfabético mientras la barra de
+// al lado las dibujaba con anchos distintos. El producto cruzado ordena por la
+// razón exacta, que es lo que la barra dibuja.
+export function compareCashShare(a: MethodTotals, b: MethodTotals): number {
+  // Una fila del reporte siempre tiene al menos una cuota, pero la función es
+  // pura y se testea con totales armados a mano: sin cobros no hay proporción.
+  if (a.total === 0 || b.total === 0) return a.total - b.total
+  return a[PAYMENT_METHODS.CASH] * b.total - b[PAYMENT_METHODS.CASH] * a.total
 }
 
 // Porcentaje entero sobre el total, con 0 cuando no hay nada cobrado — evita

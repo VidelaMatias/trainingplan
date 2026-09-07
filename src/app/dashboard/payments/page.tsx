@@ -116,7 +116,7 @@ export default async function PaymentMethodsPage() {
             <ul className="space-y-2.5">
               {monthly.map((row) => (
                 <li key={`${row.year}-${row.month}`} className="flex items-center gap-3">
-                  <span className="w-24 shrink-0 text-xs capitalize text-muted-foreground">
+                  <span className="w-24 shrink-0 text-xs text-muted-foreground">
                     {row.label}
                   </span>
                   {/* El ancho del riel es proporcional al pico del período, y

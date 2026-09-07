@@ -3,6 +3,7 @@
 import { AlertTriangle } from 'lucide-react'
 
 import { Pagination, usePagination } from '@/components/ui/pagination'
+import { formatWeekdayDate } from '@/lib/date'
 
 // Vista plana armada en el servidor: el nombre del alumno ya viene resuelto.
 export interface ExpiringPlanRow {
@@ -31,7 +32,7 @@ export function ExpiringPlansPanel({ plans }: { plans: ExpiringPlanRow[] }) {
             <span className="font-medium text-amber-900">
               {p.clientName} — {p.title}
             </span>
-            <span className="shrink-0 text-xs text-amber-700">vence {fmtExpiry(p.end_date)}</span>
+            <span className="shrink-0 text-xs text-amber-700">vence {formatWeekdayDate(p.end_date)}</span>
           </div>
         ))}
       </div>
@@ -50,12 +51,3 @@ export function ExpiringPlansPanel({ plans }: { plans: ExpiringPlanRow[] }) {
   )
 }
 
-// Al mediodía local como todas las fechas de la app: el ISO pelado se lee como
-// medianoche UTC y en Argentina rendería el día anterior.
-function fmtExpiry(iso: string): string {
-  return new Date(iso + 'T12:00:00').toLocaleDateString('es-AR', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-  })
-}

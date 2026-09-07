@@ -24,9 +24,12 @@ export const DAYS = [
 
 export type DayKey = (typeof DAYS)[number]['key']
 
+// Con mayúscula inicial: la app los muestra así en todos lados (etiquetas de
+// cuota, resúmenes de deuda) y los formateadores de lib/date capitalizan los que
+// arma Intl, así que las dos fuentes de nombres de mes coinciden.
 export const MONTH_NAMES = [
-  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
-  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ] as const
 
 // Ventana de "vence esta semana": la usan el contador del panel y la lista que
@@ -55,6 +58,16 @@ export const PLAN_LIST_BADGE: Record<PlanStatus | 'none', { label: string; varia
   [PLAN_STATUS.UPCOMING]: { label: 'Plan próximo', variant: 'warning' },
   [PLAN_STATUS.EXPIRED]: { label: 'Plan vencido', variant: 'danger' },
   none: { label: 'Sin plan', variant: 'neutral' },
+}
+
+// Orden de la columna «Plan»: primero lo que reclama atención hoy (un plan
+// activo), después lo que viene, y al fondo lo que ya no corre. Es un orden de
+// urgencia, no alfabético, así que vive acá junto a las etiquetas.
+export const PLAN_SORT_ORDER: Record<PlanStatus | 'none', number> = {
+  [PLAN_STATUS.ACTIVE]: 0,
+  [PLAN_STATUS.UPCOMING]: 1,
+  [PLAN_STATUS.EXPIRED]: 2,
+  none: 3,
 }
 
 // Vistas filtradas de la lista de alumnos. Cada tile del panel enlaza a una de
@@ -191,3 +204,10 @@ export const MAX_OBJECTIVES = 20
 
 // Filas por página en todos los listados (alumnos, planes, deudores).
 export const PAGE_SIZE = 10
+
+// Cuántos meses adeudados se nombran en la celda «Cuota» del listado antes de
+// resumir el resto en «+N más». Un alumno viejo que nunca pagó puede deber
+// decenas de meses, y enumerarlos todos estiraba su fila hasta empujar al resto
+// de la tabla fuera de la pantalla. El detalle completo se despliega al tocarlo,
+// y en el panel de cuotas pendientes cada mes es un botón.
+export const OWED_PREVIEW_MONTHS = 3

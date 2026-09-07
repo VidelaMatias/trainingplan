@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Spinner } from '@/components/ui/Spinner'
 import { cn } from '@/lib/utils'
+import { formatShortDate } from '@/lib/date'
 import { RhythmNotes } from '@/modules/clients/components/RhythmNotes'
 import { DAYS, type DayKey } from '@/types/constants'
 import {
@@ -230,7 +231,7 @@ const WeekEditor = memo(function WeekEditor({
         <div className="flex items-center gap-3">
           <span className="text-xs font-bold uppercase text-slate-400">Semana {weekIdx + 1}</span>
           <span className="text-sm font-semibold text-white">
-            {fmtDay(from)} — {fmtDay(dates[6])}
+            {formatShortDate(from)} — {formatShortDate(dates[6])}
           </span>
           {isPartial && (
             <span className="text-xs text-slate-400">(inicio del plan)</span>
@@ -294,6 +295,3 @@ const WeekEditor = memo(function WeekEditor({
   )
 })
 
-function fmtDay(iso: string) {
-  return new Date(iso + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })
-}

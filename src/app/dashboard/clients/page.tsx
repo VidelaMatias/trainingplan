@@ -10,7 +10,7 @@ import { buildPaidIndex, getOwedMonths } from '@/modules/payments/utils'
 import { getPlanStatus } from '@/modules/plans/utils'
 import { matchesClientFilter, parseClientFilter } from '@/modules/clients/utils'
 import { ClientsList, type ClientRow } from '@/modules/clients/components/ClientsList'
-import { CLIENT_FILTER_META, PLAN_STATUS } from '@/types/constants'
+import { CLIENT_FILTERS, CLIENT_FILTER_META, PLAN_STATUS } from '@/types/constants'
 import type { PlanSummary } from '@/modules/clients/queries'
 
 // Picks the plan whose badge best represents the client's current state:
@@ -130,7 +130,20 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
           )}
         </Card>
       ) : (
-        <ClientsList rows={rows} />
+        <ClientsList
+          // La key fuerza un remonte al cambiar de vista. Sin ella React conserva
+          // el estado del componente entre navegaciones sobre la misma ruta (sólo
+          // cambia el searchParam), así que initialSort —que es el valor inicial
+          // de un useState— no se aplicaba al entrar a cuotas pendientes desde
+          // otra vista ya ordenada a mano. De paso limpia búsqueda y página, que
+          // tampoco tienen sentido al cambiar de filtro.
+          key={filter ?? 'all'}
+          rows={rows}
+          // La vista de cuotas pendientes abre por deuda: todos los que entran
+          // deben al menos un mes, así que lo que hay que ver de un vistazo es
+          // quién debe más de uno.
+          initialSort={filter === CLIENT_FILTERS.DEBTORS ? 'owed' : undefined}
+        />
       )}
     </div>
   )

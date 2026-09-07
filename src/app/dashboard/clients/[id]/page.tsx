@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { buttonVariants } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { formatNumericDate } from '@/lib/date'
 import { whatsappChatUrl } from '@/lib/whatsapp'
 import { getClientById } from '@/modules/clients/queries'
 import { getClientPlans } from '@/modules/plans/queries'
@@ -219,9 +220,7 @@ function Field({ label, value, wide }: { label: string; value: string | null; wi
   )
 }
 
-// Read at local noon like every other date in the app: parsing the bare ISO
-// string gives UTC midnight, which renders as the previous day in Argentina.
 function formatBirthDate(iso: string | null): string | null {
   if (!iso) return null
-  return new Date(iso + 'T12:00:00').toLocaleDateString('es-AR')
+  return formatNumericDate(iso)
 }

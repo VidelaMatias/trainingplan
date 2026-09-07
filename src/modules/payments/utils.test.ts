@@ -5,7 +5,9 @@ import {
   buildPaidIndex,
   getAllMonthsWithStatus,
   getOwedMonths,
+  compareCashShare,
   monthLabel,
+  owedSummary,
   sharePercent,
   sumTotals,
   totalsByClient,
@@ -144,11 +146,11 @@ describe('getAllMonthsWithStatus', () => {
 
 describe('monthLabel', () => {
   it('omits the year for the current year', () => {
-    assert.equal(monthLabel(2026, 8, 2026), 'agosto')
+    assert.equal(monthLabel(2026, 8, 2026), 'Agosto')
   })
 
   it('includes the year for any other year', () => {
-    assert.equal(monthLabel(2025, 12, 2026), 'diciembre 2025')
+    assert.equal(monthLabel(2025, 12, 2026), 'Diciembre 2025')
   })
 })
 
@@ -196,7 +198,7 @@ describe('totalsByMonth', () => {
     freezeAt(MIDDAY)
     const rows = totalsByMonth([paid('a', 2025, 1, cash), paid('a', 2026, 8, transfer)], 3)
     assert.deepEqual(rows[0], {
-      year: 2026, month: 8, label: 'agosto', cash: 0, transfer: 1, unspecified: 0, total: 1,
+      year: 2026, month: 8, label: 'Agosto', cash: 0, transfer: 1, unspecified: 0, total: 1,
     })
     assert.equal(rows.reduce((n, r) => n + r.total, 0), 1)
   })
@@ -209,7 +211,7 @@ describe('totalsByMonth', () => {
       ['2026-1', '2025-12', '2025-11'],
     )
     // El año se muestra en las etiquetas de meses que no son del año actual.
-    assert.deepEqual(rows.map((r) => r.label), ['enero', 'diciembre 2025', 'noviembre 2025'])
+    assert.deepEqual(rows.map((r) => r.label), ['Enero', 'Diciembre 2025', 'Noviembre 2025'])
   })
 })
 
@@ -284,5 +286,65 @@ describe('totalsByMethod con datos fuera de contrato', () => {
     assert.equal(totals.total, 2)
     assert.equal(totals.cash + totals.transfer + totals.unspecified, totals.total)
     assert.equal(totals.unspecified, 1)
+  })
+})
+
+describe('owedSummary', () => {
+  it('nombra todos los meses mientras entren en la celda', () => {
+    assert.equal(owedSummary(['Enero', 'Febrero']), 'Enero, Febrero')
+  })
+
+  it('no recorta cuando el corte ahorraría un solo mes', () => {
+    // «Enero, Febrero, Marzo +1 más» ocupa lo mismo que los cuatro y dice menos.
+    assert.equal(
+      owedSummary(['Enero', 'Febrero', 'Marzo', 'Abril']),
+      'Enero, Febrero, Marzo, Abril',
+    )
+  })
+
+  it('resume la deuda larga en las más viejas más un conteo', () => {
+    // El caso que rompía la tabla: un alumno de 2024 que nunca pagó.
+    const labels = [
+      'Marzo 2024',
+      'Abril 2024',
+      'Mayo 2024',
+      'Junio 2024',
+      'Julio 2024',
+      'Agosto 2024',
+    ]
+    assert.equal(owedSummary(labels), 'Marzo 2024, Abril 2024, Mayo 2024 +3 más')
+  })
+
+  it('devuelve vacío para un alumno al día', () => {
+    assert.equal(owedSummary([]), '')
+  })
+})
+
+describe('compareCashShare', () => {
+  const row = (cash: number, transfer: number) => ({
+    [PAYMENT_METHODS.CASH]: cash,
+    [PAYMENT_METHODS.TRANSFER]: transfer,
+    unspecified: 0,
+    total: cash + transfer,
+  })
+
+  it('separa proporciones que sharePercent redondea al mismo entero', () => {
+    // 17/50 = 34,0 % y 27/80 = 33,75 %: los dos redondean a 34, así que restar
+    // dos sharePercent daba empate y la fila caía al orden alfabético mientras
+    // la barra de al lado las dibujaba con anchos distintos.
+    const more = row(17, 33)
+    const less = row(27, 53)
+
+    assert.ok(compareCashShare(less, more) < 0)
+    assert.ok(compareCashShare(more, less) > 0)
+  })
+
+  it('empata sólo cuando la proporción es realmente la misma', () => {
+    assert.equal(compareCashShare(row(1, 2), row(5, 10)), 0)
+  })
+
+  it('no divide por cero cuando no hay cuotas cobradas', () => {
+    assert.equal(compareCashShare(row(0, 0), row(0, 0)), 0)
+    assert.ok(compareCashShare(row(0, 0), row(1, 1)) < 0)
   })
 })

@@ -9,6 +9,7 @@ import { Button, buttonVariants } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Spinner } from '@/components/ui/Spinner'
 import { cn } from '@/lib/utils'
+import { formatMediumDate, formatShortDate } from '@/lib/date'
 import { RhythmNotes } from '@/modules/clients/components/RhythmNotes'
 import { DAYS } from '@/types/constants'
 import { PLAN_STATUS, PLAN_STATUS_META } from '@/types/constants'
@@ -181,7 +182,7 @@ export function PlanCard({ plan, clientId, clientRhythmNotes, whatsappUrl }: Pla
             </span>
           </div>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            {fmtDate(plan.start_date)} — {fmtDate(plan.end_date)}
+            {formatMediumDate(plan.start_date)} — {formatMediumDate(plan.end_date)}
           </p>
         </div>
 
@@ -342,7 +343,7 @@ function WeekView({ week, startDate }: { week: TrainingPlanWeek; startDate: stri
       <div className="bg-slate-800 px-5 py-2">
         <span className="text-xs font-semibold uppercase text-slate-400">Semana {week.week_number} </span>
         <span className="text-xs text-slate-300">
-          {fmtShort(from)} — {fmtShort(dates[6])}
+          {formatShortDate(from)} — {formatShortDate(dates[6])}
         </span>
       </div>
       {/* Dos lecturas de la misma semana. En desktop, la grilla de 7 columnas
@@ -399,14 +400,3 @@ function filenameFrom(res: Response): string | null {
   return match?.[1] ?? null
 }
 
-function fmtShort(iso: string) {
-  return new Date(iso + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })
-}
-
-function fmtDate(iso: string) {
-  return new Date(iso + 'T12:00:00').toLocaleDateString('es-AR', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  })
-}

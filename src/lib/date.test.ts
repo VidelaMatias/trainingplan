@@ -1,7 +1,18 @@
 import assert from 'node:assert/strict'
 import { afterEach, describe, it, mock } from 'node:test'
 
-import { addDays, instantToISODate, parseISODate, toISODate, todayISO, yearMonthOf } from '@/lib/date'
+import {
+  addDays,
+  formatMediumDate,
+  formatNumericDate,
+  formatShortDate,
+  formatWeekdayDate,
+  instantToISODate,
+  parseISODate,
+  toISODate,
+  todayISO,
+  yearMonthOf,
+} from '@/lib/date'
 
 // Freezes the wall clock at a real instant. Only `new Date()` with no arguments
 // is affected — parsing a date string keeps working normally, which is what the
@@ -87,6 +98,71 @@ describe('parseISODate / toISODate', () => {
     // toISOString() version rolled the day back for timezones behind UTC.
     for (const iso of ['2026-01-01', '2026-08-19', '2026-12-31', '2028-02-29']) {
       assert.equal(toISODate(parseISODate(iso)), iso)
+    }
+  })
+})
+
+// La app escribe meses y días de la semana con inicial mayúscula (MONTH_NAMES,
+// DAYS), pero Intl los devuelve en minúscula para es-AR.
+//
+// Estos casos no fijan la abreviatura —«sep» o «sept» según la versión de CLDR, y
+// en un Node con small-icu es-AR cae a en-US—, sino las dos propiedades que sí
+// son nuestras: que el mes quede capitalizado y que no se agregue ni se pierda
+// nada del texto que arma Intl.
+describe('formato de fechas para la UI', () => {
+  function partsOf(options: Intl.DateTimeFormatOptions, iso: string) {
+    return new Intl.DateTimeFormat('es-AR', options).formatToParts(parseISODate(iso))
+  }
+
+  function capitalized(value: string): string {
+    return value.charAt(0).toUpperCase() + value.slice(1)
+  }
+
+  it('capitaliza el mes, que no siempre es la primera letra del texto', () => {
+    const parts = partsOf({ day: 'numeric', month: 'short' }, '2026-09-12')
+    const month = parts.find((p) => p.type === 'month')!.value
+    const formatted = formatShortDate('2026-09-12')
+
+    assert.ok(
+      formatted.includes(capitalized(month)),
+      `«${formatted}» debería contener «${capitalized(month)}»`,
+    )
+    // Mismo contenido que Intl: sólo cambia la caja de una letra.
+    assert.equal(formatted.toLowerCase(), parts.map((p) => p.value).join('').toLowerCase())
+  })
+
+  it('capitaliza también el día de la semana', () => {
+    const parts = partsOf({ weekday: 'short', day: 'numeric', month: 'short' }, '2026-09-12')
+    const weekday = parts.find((p) => p.type === 'weekday')!.value
+
+    assert.ok(formatWeekdayDate('2026-09-12').startsWith(capitalized(weekday)))
+  })
+
+  it('deja la forma con año igual que Intl salvo la caja del mes', () => {
+    const parts = partsOf({ day: 'numeric', month: 'short', year: 'numeric' }, '2026-09-12')
+
+    assert.equal(
+      formatMediumDate('2026-09-12').toLowerCase(),
+      parts.map((p) => p.value).join('').toLowerCase(),
+    )
+  })
+
+  it('no toca la forma numérica — no hay nombre de mes que corregir', () => {
+    assert.equal(
+      formatNumericDate('2026-09-12'),
+      new Intl.DateTimeFormat('es-AR').format(parseISODate('2026-09-12')),
+    )
+  })
+
+  // Intl tira RangeError sobre un Date inválido, a diferencia del
+  // toLocaleDateString que estas funciones reemplazaron. Vaciar el campo de
+  // fecha del formulario de planes llega hasta acá con «NaN-NaN-NaN».
+  it('devuelve un hueco en vez de tirar cuando la fecha no se puede leer', () => {
+    for (const bad of ['', 'NaN-NaN-NaN', 'no es una fecha']) {
+      assert.equal(formatShortDate(bad), '—')
+      assert.equal(formatMediumDate(bad), '—')
+      assert.equal(formatWeekdayDate(bad), '—')
+      assert.equal(formatNumericDate(bad), '—')
     }
   })
 })
