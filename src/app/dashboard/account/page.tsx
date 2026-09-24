@@ -2,15 +2,19 @@ import { redirect } from 'next/navigation'
 import { Mail } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { getCurrentUser } from '@/lib/auth/guards'
+import { getCurrentUser, getFreshUser } from '@/lib/auth/guards'
 import { ChangePasswordForm } from '@/modules/auth/components/ChangePasswordForm'
 
-export default async function AccountPage() {
-  // The dashboard layout already guards this route; the check here narrows the
-  // nullable user for TypeScript and costs nothing (getCurrentUser is cached
-  // per request).
-  const user = await getCurrentUser()
+export default async function AccountPage(): Promise<React.JSX.Element> {
+  // Guarded with the same local check as the layout and the proxy. Guarding with
+  // getFreshUser sent a revoked session (or a hiccup of the Auth server) to
+  // /login, which the proxy — still trusting the JWT — bounced straight back to
+  // /dashboard: the account page silently became the panel.
+  const [user, fresh] = await Promise.all([getCurrentUser(), getFreshUser()])
   if (!user) redirect('/login')
+  // The email as the Auth server has it, since this is where the account is
+  // shown; the JWT's can lag a change made outside the app.
+  const email = fresh?.email ?? user.email
 
   return (
     <div className="max-w-2xl">
@@ -25,7 +29,7 @@ export default async function AccountPage() {
         </CardHeader>
         <CardContent className="flex items-center gap-2 text-sm text-secondary-foreground">
           <Mail className="size-4 shrink-0 text-muted-foreground" />
-          <span className="truncate">{user.email}</span>
+          <span className="truncate">{email}</span>
         </CardContent>
       </Card>
 

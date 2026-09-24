@@ -19,8 +19,10 @@ import {
   matchesTokens,
   nameHaystack,
   searchTokens,
+  withClientFilter,
 } from '@/modules/clients/utils'
 import { owedSummary } from '@/modules/payments/utils'
+import { useClientFilter } from '@/modules/clients/useClientFilter'
 import { PLAN_LIST_BADGE, PLAN_SORT_ORDER } from '@/types/constants'
 
 // Flat view model built on the server. Everything the two layouts render is
@@ -70,7 +72,10 @@ interface ClientsListProps {
   initialSort?: SortKey
 }
 
-export function ClientsList({ rows, initialSort }: ClientsListProps) {
+export function ClientsList({ rows, initialSort }: ClientsListProps): React.JSX.Element {
+  // Vista filtrada en la que se abrió la lista: la ficha y la edición la llevan
+  // en su URL para volver a ella.
+  const filter = useClientFilter()
   const [query, setQuery] = useState('')
 
   // Names are normalized once for the whole list, not on every keystroke.
@@ -222,7 +227,7 @@ export function ClientsList({ rows, initialSort }: ClientsListProps) {
                 <Card key={row.id} className="p-4">
                   <div className="mb-3 flex items-start justify-between gap-2">
                     <Link
-                      href={`/dashboard/clients/${row.id}`}
+                      href={withClientFilter(`/dashboard/clients/${row.id}`, filter)}
                       className="font-semibold leading-tight text-slate-900 transition hover:text-primary"
                     >
                       {row.first_name} {row.last_name}
@@ -346,7 +351,7 @@ export function ClientsList({ rows, initialSort }: ClientsListProps) {
                       <tr key={row.id} className="transition hover:bg-muted">
                         <td className="px-5 py-3.5">
                           <Link
-                            href={`/dashboard/clients/${row.id}`}
+                            href={withClientFilter(`/dashboard/clients/${row.id}`, filter)}
                             className="font-medium text-slate-900 transition hover:text-primary"
                           >
                             {row.first_name} {row.last_name}

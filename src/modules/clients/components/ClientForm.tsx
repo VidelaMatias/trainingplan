@@ -16,6 +16,7 @@ import type { ActionResult, Client, ClientObjective } from '@/types'
 interface ClientFormProps {
   action: (prev: ActionResult<null>, formData: FormData) => Promise<ActionResult<null>>
   client?: Client
+  cancelHref?: string
 }
 
 const initialState: ActionResult<null> = { data: null, error: null }
@@ -32,7 +33,11 @@ function toRows(objectives: ClientObjective[] | undefined): ObjectiveRow[] {
   return (objectives ?? []).map((objective, i) => ({ id: i, objective }))
 }
 
-export function ClientForm({ action, client }: ClientFormProps) {
+export function ClientForm({
+  action,
+  client,
+  cancelHref = '/dashboard/clients',
+}: ClientFormProps): React.JSX.Element {
   const [state, formAction, isPending] = useActionState(action, initialState)
   const [objectiveRows, setObjectiveRows] = useState<ObjectiveRow[]>(() => toRows(client?.objectives))
   const nextObjectiveId = useRef(objectiveRows.length)
@@ -311,7 +316,7 @@ export function ClientForm({ action, client }: ClientFormProps) {
           {isPending && <Spinner />}
           {isPending ? 'Guardando...' : isEdit ? 'Guardar cambios' : 'Crear alumno'}
         </Button>
-        <Link href="/dashboard/clients" className={cn(buttonVariants({ variant: 'secondary' }))}>
+        <Link href={cancelHref} className={cn(buttonVariants({ variant: 'secondary' }))}>
           Cancelar
         </Link>
       </div>

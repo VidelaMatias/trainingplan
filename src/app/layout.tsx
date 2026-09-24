@@ -7,9 +7,13 @@ const geistSans = Geist({
   subsets: ["latin"],
 });
 
+// Sólo la usan los ritmos dentro de los formularios de alumno y de plan. Con el
+// preload por defecto, cada página —login incluido— bajaba esta fuente con
+// prioridad alta para no mostrarla; así se pide recién cuando algo la usa.
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  preload: false,
 });
 
 export const metadata: Metadata = {

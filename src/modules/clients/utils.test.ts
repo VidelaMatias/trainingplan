@@ -11,6 +11,7 @@ import {
   parseRhythmLine,
   parseRhythmNotes,
   searchTokens,
+  withClientFilter,
   type FilterableClient,
   type SearchableClient,
 } from '@/modules/clients/utils'
@@ -200,9 +201,23 @@ describe('parseClientFilter', () => {
   it('falls back to no filter for anything else', () => {
     // A stale bookmark or a hand-typed URL should show the whole list, not an
     // empty one that reads as "no tenés alumnos".
-    for (const bad of [undefined, '', 'activos', 'debtors ', '../../etc/passwd']) {
+    for (const bad of [undefined, '', 'activos', 'debtors ', '../../etc/passwd', ['expiring']]) {
       assert.equal(parseClientFilter(bad), null)
     }
+  })
+})
+
+describe('withClientFilter', () => {
+  it('carries the filtered view in the query string', () => {
+    assert.equal(
+      withClientFilter('/dashboard/clients/abc', CLIENT_FILTERS.EXPIRING),
+      '/dashboard/clients/abc?filter=expiring',
+    )
+  })
+
+  it('leaves the path alone when there is no filter', () => {
+    assert.equal(withClientFilter('/dashboard/clients', null), '/dashboard/clients')
+    assert.equal(withClientFilter('/dashboard/clients', undefined), '/dashboard/clients')
   })
 })
 
@@ -241,5 +256,29 @@ describe('matchesClientFilter', () => {
     // The panel counts debtors among active alumnos only; including an inactive
     // one here would make the tile and the list it opens disagree.
     assert.equal(matchesClientFilter(filterable({ active: false, owedCount: 2 }), filter), false)
+  })
+
+  it('ignores finished plans: the list only loads the latest one', () => {
+    // getClientsWithPlans sends every running or upcoming plan but at most one
+    // finished plan per alumno. A filter that read finished plans would quietly
+    // give wrong results there, so adding any number of them changes nothing.
+    freezeAtMidday()
+    const UPCOMING = { start_date: '2026-12-01', end_date: '2026-12-31' }
+    const history = [FINISHED, { start_date: '2026-05-01', end_date: '2026-05-31' }]
+    for (const filter of Object.values(CLIENT_FILTERS)) {
+      for (const plans of [[], [RUNNING], [ENDING_FRIDAY], [UPCOMING], [RUNNING, UPCOMING]]) {
+        for (const base of [
+          filterable({ plans }),
+          filterable({ plans, active: false }),
+          filterable({ plans, owedCount: 3 }),
+        ]) {
+          assert.equal(
+            matchesClientFilter({ ...base, plans: [...plans, ...history] }, filter),
+            matchesClientFilter(base, filter),
+            `${filter} changed with finished plans added to ${JSON.stringify(plans)}`,
+          )
+        }
+      }
+    }
   })
 })

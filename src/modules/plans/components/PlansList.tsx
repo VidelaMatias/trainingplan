@@ -13,7 +13,12 @@ interface PlansListProps {
 
 // Los planes se acumulan semana a semana: la ficha muestra una página por vez
 // para que el historial viejo no entierre el plan en curso.
-export function PlansList({ plans, clientId, clientRhythmNotes, whatsappUrl }: PlansListProps) {
+export function PlansList({
+  plans,
+  clientId,
+  clientRhythmNotes,
+  whatsappUrl,
+}: PlansListProps): React.JSX.Element {
   const { page, pageCount, pageItems, total, from, to, setPage } = usePagination(plans)
 
   return (

@@ -13,6 +13,8 @@ import { formatMediumDate, formatShortDate } from '@/lib/date'
 import { RhythmNotes } from '@/modules/clients/components/RhythmNotes'
 import { DAYS } from '@/types/constants'
 import { PLAN_STATUS, PLAN_STATUS_META } from '@/types/constants'
+import { useClientFilter } from '@/modules/clients/useClientFilter'
+import { withClientFilter } from '@/modules/clients/utils'
 import { getPlanStatus, getWeekDates } from '@/modules/plans/utils'
 import { deletePlanAction, fetchPlanWeeks } from '@/modules/plans/actions'
 import type { PlanListItem } from '@/modules/plans/queries'
@@ -27,7 +29,14 @@ interface PlanCardProps {
   whatsappUrl?: string | null
 }
 
-export function PlanCard({ plan, clientId, clientRhythmNotes, whatsappUrl }: PlanCardProps) {
+export function PlanCard({
+  plan,
+  clientId,
+  clientRhythmNotes,
+  whatsappUrl,
+}: PlanCardProps): React.JSX.Element {
+  // Vista filtrada de la lista de alumnos, para que la edición del plan vuelva a ella.
+  const filter = useClientFilter()
   const [expanded, setExpanded] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [loadingDelete, setLoadingDelete] = useState(false)
@@ -69,7 +78,7 @@ export function PlanCard({ plan, clientId, clientRhythmNotes, whatsappUrl }: Pla
   async function handleDelete() {
     setLoadingDelete(true)
     setError(null)
-    const result = await deletePlanAction(plan.id, clientId)
+    const result = await deletePlanAction(plan.id)
     // On success the row disappears with the revalidation; on failure the
     // button used to spin forever with the error silently discarded.
     if (result.error) {
@@ -223,7 +232,7 @@ export function PlanCard({ plan, clientId, clientRhythmNotes, whatsappUrl }: Pla
               esqueleto, y editar un plan largo dejaba el botón sin respuesta
               varios segundos. */}
           <Link
-            href={`/dashboard/clients/${clientId}/plans/${plan.id}/edit`}
+            href={withClientFilter(`/dashboard/clients/${clientId}/plans/${plan.id}/edit`, filter)}
             title="Editar"
             aria-label={`Editar ${plan.title}`}
             className={cn(

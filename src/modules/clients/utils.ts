@@ -3,14 +3,9 @@
 // component so the interesting behaviour — accent folding, multi-word queries,
 // Spanish collation, what each dashboard tile means — is testable on its own.
 
-import {
-  CLIENT_FILTERS,
-  EXPIRING_SOON_DAYS,
-  PLAN_STATUS,
-  type ClientFilter,
-} from '@/types/constants'
+import { CLIENT_FILTERS, PLAN_STATUS, type ClientFilter } from '@/types/constants'
 import { compareText } from '@/lib/text'
-import { getPlanStatus, isExpiringWithin } from '@/modules/plans/utils'
+import { getPlanStatus, isPlanExpiringSoon } from '@/modules/plans/utils'
 
 export interface SearchableClient {
   first_name: string
@@ -90,31 +85,48 @@ export function parseRhythmNotes(notes: string): RhythmLine[] {
 // independent of the row shape the list component renders.
 export interface FilterableClient {
   active: boolean
+  // Every plan that has not finished yet (running or upcoming). Finished ones
+  // may be missing — getClientsWithPlans only brings the latest — so no filter
+  // may depend on them; the "ignores finished plans" test holds that line.
   plans: { start_date: string; end_date: string }[]
   owedCount: number
 }
 
 // Only the keys the panel links to are accepted; anything else (a stale link, a
-// hand-typed URL) falls back to the unfiltered list rather than an empty one.
-export function parseClientFilter(value: string | undefined): ClientFilter | null {
-  const known: readonly string[] = Object.values(CLIENT_FILTERS)
-  return value !== undefined && known.includes(value) ? (value as ClientFilter) : null
+// hand-typed URL, a repeated ?filter=, a crafted Server Action argument) falls
+// back to the unfiltered list rather than an empty one.
+export function parseClientFilter(value: unknown): ClientFilter | null {
+  const known: readonly unknown[] = Object.values(CLIENT_FILTERS)
+  return known.includes(value) ? (value as ClientFilter) : null
+}
+
+// La vista filtrada no termina en la lista: el ?filter=… viaja por la ficha del
+// alumno y sus formularios, así «volver» regresa a la lista desde la que se
+// entró y no a la de todos los alumnos. Es el único lugar que arma esa URL.
+export function withClientFilter(path: string, filter: ClientFilter | null | undefined): string {
+  return filter ? `${path}?filter=${filter}` : path
+}
+
+// Los searchParams de toda página del flujo de alumnos: la lista y cada
+// pantalla a la que se llega desde ella. Sólo leen la vista de origen.
+export type ClientFilterSearchParams = Promise<{ filter?: string | string[] }>
+
+export async function readClientFilter(
+  searchParams: ClientFilterSearchParams,
+): Promise<ClientFilter | null> {
+  return parseClientFilter((await searchParams).filter)
 }
 
 export function matchesClientFilter(client: FilterableClient, filter: ClientFilter): boolean {
   switch (filter) {
     case CLIENT_FILTERS.ACTIVE:
       return client.active
-    // Sobre todos los planes del alumno, no sobre el que muestra la fila: quien
+    // Sobre todos los planes que recibe, no sobre el que muestra la fila: quien
     // tiene dos planes solapados igual entra si alguno está activo o por vencer.
     case CLIENT_FILTERS.WITH_ACTIVE_PLAN:
       return client.plans.some((plan) => getPlanStatus(plan) === PLAN_STATUS.ACTIVE)
     case CLIENT_FILTERS.EXPIRING:
-      return client.plans.some(
-        (plan) =>
-          getPlanStatus(plan) === PLAN_STATUS.ACTIVE &&
-          isExpiringWithin(plan.end_date, EXPIRING_SOON_DAYS),
-      )
+      return client.plans.some(isPlanExpiringSoon)
     // El panel cuenta deudores sólo entre los alumnos activos: uno dado de baja
     // no se reclama, y contarlo acá dejaría el tile y la lista en desacuerdo.
     case CLIENT_FILTERS.DEBTORS:

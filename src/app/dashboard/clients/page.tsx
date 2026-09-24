@@ -8,7 +8,12 @@ import { getClientsWithPlans } from '@/modules/clients/queries'
 import { getAllPayments } from '@/modules/payments/queries'
 import { buildPaidIndex, getOwedMonths } from '@/modules/payments/utils'
 import { getPlanStatus } from '@/modules/plans/utils'
-import { matchesClientFilter, parseClientFilter } from '@/modules/clients/utils'
+import {
+  matchesClientFilter,
+  readClientFilter,
+  withClientFilter,
+  type ClientFilterSearchParams,
+} from '@/modules/clients/utils'
 import { ClientsList, type ClientRow } from '@/modules/clients/components/ClientsList'
 import { CLIENT_FILTERS, CLIENT_FILTER_META, PLAN_STATUS } from '@/types/constants'
 import type { PlanSummary } from '@/modules/clients/queries'
@@ -26,16 +31,17 @@ function currentPlanOf(plans: PlanSummary[]): PlanSummary | undefined {
 // Each tile on the panel links here with ?filter=…; an unknown value is ignored
 // rather than yielding an empty list.
 interface ClientsPageProps {
-  searchParams: Promise<{ filter?: string | string[] }>
+  searchParams: ClientFilterSearchParams
 }
 
-export default async function ClientsPage({ searchParams }: ClientsPageProps) {
-  const [{ filter: rawFilter }, clients, payments] = await Promise.all([
-    searchParams,
+export default async function ClientsPage({
+  searchParams,
+}: ClientsPageProps): Promise<React.JSX.Element> {
+  const [filter, clients, payments] = await Promise.all([
+    readClientFilter(searchParams),
     getClientsWithPlans(),
     getAllPayments(),
   ])
-  const filter = parseClientFilter(typeof rawFilter === 'string' ? rawFilter : undefined)
   const filterMeta = filter ? CLIENT_FILTER_META[filter] : null
 
   // Everything the list renders is derived once here, on the server: the two
@@ -47,8 +53,8 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
   for (const client of clients) {
     const owed = getOwedMonths(client.created_at, client.id, paidIndex)
 
-    // Filtered against every plan the alumno has, not just the one the row
-    // shows — matchesClientFilter is the same rule the panel counts with.
+    // Filtered against every plan still running or upcoming, not just the one
+    // the row shows — matchesClientFilter is the same rule the panel counts with.
     if (
       filter &&
       !matchesClientFilter(
@@ -95,7 +101,10 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
               Ver todos
             </Link>
           )}
-          <Link href="/dashboard/clients/new" className={cn(buttonVariants())}>
+          <Link
+            href={withClientFilter('/dashboard/clients/new', filter)}
+            className={cn(buttonVariants())}
+          >
             <Plus />
             Nuevo alumno
           </Link>

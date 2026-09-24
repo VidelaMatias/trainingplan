@@ -9,6 +9,11 @@ import { cn } from '@/lib/utils'
 import { formatNumericDate } from '@/lib/date'
 import { whatsappChatUrl } from '@/lib/whatsapp'
 import { getClientById } from '@/modules/clients/queries'
+import {
+  readClientFilter,
+  withClientFilter,
+  type ClientFilterSearchParams,
+} from '@/modules/clients/utils'
 import { getClientPlans } from '@/modules/plans/queries'
 import { getPlanStatus } from '@/modules/plans/utils'
 import { getPaymentsForClient } from '@/modules/payments/queries'
@@ -19,10 +24,15 @@ import { PLAN_STATUS, REFERENCE_DISTANCES } from '@/types/constants'
 
 interface ClientDetailPageProps {
   params: Promise<{ id: string }>
+  // La vista filtrada de la lista desde la que se llegó, para volver a ella.
+  searchParams: ClientFilterSearchParams
 }
 
-export default async function ClientDetailPage({ params }: ClientDetailPageProps) {
-  const { id } = await params
+export default async function ClientDetailPage({
+  params,
+  searchParams,
+}: ClientDetailPageProps): Promise<React.JSX.Element> {
+  const [{ id }, filter] = await Promise.all([params, readClientFilter(searchParams)])
 
   // All three reads are independent — awaiting the client first cost an extra
   // round trip of pure dead time on every visit.
@@ -49,7 +59,7 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
       <div className="mb-6 flex items-start justify-between">
         <div className="flex items-center gap-3">
           <Link
-            href="/dashboard/clients"
+            href={withClientFilter('/dashboard/clients', filter)}
             className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-muted hover:text-secondary-foreground"
           >
             <ChevronLeft className="size-5" />
@@ -67,7 +77,7 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
           </div>
         </div>
         <Link
-          href={`/dashboard/clients/${id}/edit`}
+          href={withClientFilter(`/dashboard/clients/${id}/edit`, filter)}
           className={cn(buttonVariants({ variant: 'secondary', size: 'sm' }))}
         >
           <Pencil />
@@ -91,7 +101,7 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
               </p>
             </div>
             <Link
-              href={`/dashboard/clients/${id}/plans/new`}
+              href={withClientFilter(`/dashboard/clients/${id}/plans/new`, filter)}
               className={cn(buttonVariants(), 'shrink-0')}
             >
               <Plus />
@@ -104,7 +114,7 @@ export default async function ClientDetailPage({ params }: ClientDetailPageProps
               <CalendarDays className="mx-auto mb-3 size-10 text-slate-300" />
               <p className="font-medium text-muted-foreground">Sin planes de entrenamiento</p>
               <Link
-                href={`/dashboard/clients/${id}/plans/new`}
+                href={withClientFilter(`/dashboard/clients/${id}/plans/new`, filter)}
                 className={cn(buttonVariants({ size: 'sm' }), 'mt-4')}
               >
                 Crear primer plan

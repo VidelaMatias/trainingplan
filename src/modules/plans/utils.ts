@@ -1,4 +1,4 @@
-import { DAYS, PLAN_STATUS, type PlanStatus } from '@/types/constants'
+import { DAYS, EXPIRING_SOON_DAYS, PLAN_STATUS, type PlanStatus } from '@/types/constants'
 import { addDays, parseISODate, toISODate, todayISO } from '@/lib/date'
 import type { WeekContent } from '@/types'
 
@@ -84,6 +84,16 @@ export function clampWeeksToStart<T extends WeekContent & { week_start: string }
 export function isExpiringWithin(endDate: string, days: number): boolean {
   const today = todayISO()
   return endDate >= today && endDate <= addDays(today, days)
+}
+
+// The "vence esta semana" rule: a running plan ending within
+// EXPIRING_SOON_DAYS. One definition for the dashboard panel that lists these
+// plans and the alumnos filter its tile opens, so the two cannot drift.
+export function isPlanExpiringSoon(plan: { start_date: string; end_date: string }): boolean {
+  return (
+    getPlanStatus(plan) === PLAN_STATUS.ACTIVE &&
+    isExpiringWithin(plan.end_date, EXPIRING_SOON_DAYS)
+  )
 }
 
 export function emptyWeekContent(): WeekContent {

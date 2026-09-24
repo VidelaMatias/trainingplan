@@ -1,10 +1,16 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { revalidateAppData } from '@/lib/revalidate'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth/guards'
-import { clientSchema } from '@/types/schemas'
+import {
+  alumnoIdSchema,
+  clientActiveSchema,
+  clientFilterSchema,
+  clientSchema,
+} from '@/types/schemas'
+import { withClientFilter } from '@/modules/clients/utils'
 import type { ActionResult } from '@/types'
 
 // The objectives editor repeats the same three input names once per row, so the
@@ -49,7 +55,11 @@ function parseClientForm(formData: FormData) {
   })
 }
 
+// `filter` is the list view the coach came from, so saving lands back on it.
+// `unknown` because it arrives from the client: clientFilterSchema is the only
+// way to turn it into something the redirect can use.
 export async function createClientAction(
+  filter: unknown,
   _prev: ActionResult<null>,
   formData: FormData,
 ): Promise<ActionResult<null>> {
@@ -66,18 +76,24 @@ export async function createClientAction(
 
   if (error) return { data: null, error: 'No se pudo crear el alumno' }
 
-  revalidatePath('/dashboard')
-  revalidatePath('/dashboard/clients')
-  redirect('/dashboard/clients')
+  revalidateAppData()
+  redirect(withClientFilter('/dashboard/clients', clientFilterSchema.parse(filter)))
 }
 
+// `filter` is the list view the edit was opened from, so saving lands back on it.
+// `unknown` because it arrives from the client: clientFilterSchema is the only
+// way to turn it into something the redirect can use.
 export async function updateClientAction(
   id: string,
+  filter: unknown,
   _prev: ActionResult<null>,
   formData: FormData,
 ): Promise<ActionResult<null>> {
   const auth = await requireAuth()
   if (!auth) return { data: null, error: 'No autorizado' }
+
+  const parsedId = alumnoIdSchema.safeParse(id)
+  if (!parsedId.success) return { data: null, error: parsedId.error.issues[0].message }
 
   const parsed = parseClientForm(formData)
   if (!parsed.success) return { data: null, error: parsed.error.issues[0].message }
@@ -86,19 +102,17 @@ export async function updateClientAction(
   const { data: existing } = await supabase
     .from('alumnos')
     .select('id')
-    .eq('id', id)
+    .eq('id', parsedId.data)
     .eq('created_by', auth.userId)
     .single()
 
   if (!existing) return { data: null, error: 'No autorizado' }
 
-  const { error } = await supabase.from('alumnos').update(parsed.data).eq('id', id)
+  const { error } = await supabase.from('alumnos').update(parsed.data).eq('id', parsedId.data)
   if (error) return { data: null, error: 'No se pudo actualizar el alumno' }
 
-  revalidatePath('/dashboard')
-  revalidatePath('/dashboard/clients')
-  revalidatePath(`/dashboard/clients/${id}`)
-  redirect('/dashboard/clients')
+  revalidateAppData()
+  redirect(withClientFilter('/dashboard/clients', clientFilterSchema.parse(filter)))
 }
 
 export async function toggleClientActive(
@@ -108,24 +122,26 @@ export async function toggleClientActive(
   const auth = await requireAuth()
   if (!auth) return { data: null, error: 'No autorizado' }
 
+  const parsed = clientActiveSchema.safeParse({ id, active })
+  if (!parsed.success) return { data: null, error: parsed.error.issues[0].message }
+
   const supabase = await createClient()
   const { data: existing } = await supabase
     .from('alumnos')
     .select('id')
-    .eq('id', id)
+    .eq('id', parsed.data.id)
     .eq('created_by', auth.userId)
     .single()
 
   if (!existing) return { data: null, error: 'No autorizado' }
 
-  const { error } = await supabase.from('alumnos').update({ active }).eq('id', id)
+  const { error } = await supabase
+    .from('alumnos')
+    .update({ active: parsed.data.active })
+    .eq('id', parsed.data.id)
   if (error) return { data: null, error: 'No se pudo actualizar el alumno' }
 
-  // The dashboard counts only active alumnos and derives debtors from them, so
-  // it goes stale on this toggle just as much as the list does.
-  revalidatePath('/dashboard')
-  revalidatePath('/dashboard/clients')
-  revalidatePath(`/dashboard/clients/${id}`)
+  revalidateAppData()
   return { data: null, error: null }
 }
 
@@ -133,20 +149,22 @@ export async function deleteClientAction(id: string): Promise<ActionResult<null>
   const auth = await requireAuth()
   if (!auth) return { data: null, error: 'No autorizado' }
 
+  const parsedId = alumnoIdSchema.safeParse(id)
+  if (!parsedId.success) return { data: null, error: parsedId.error.issues[0].message }
+
   const supabase = await createClient()
   const { data: existing } = await supabase
     .from('alumnos')
     .select('id')
-    .eq('id', id)
+    .eq('id', parsedId.data)
     .eq('created_by', auth.userId)
     .single()
 
   if (!existing) return { data: null, error: 'No autorizado' }
 
-  const { error } = await supabase.from('alumnos').delete().eq('id', id)
+  const { error } = await supabase.from('alumnos').delete().eq('id', parsedId.data)
   if (error) return { data: null, error: 'No se pudo eliminar el alumno' }
 
-  revalidatePath('/dashboard')
-  revalidatePath('/dashboard/clients')
+  revalidateAppData()
   return { data: null, error: null }
 }

@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { createClient } from '@/lib/supabase/server'
+import { getCurrentUser } from '@/lib/auth/guards'
 import { getPlanForExport } from '@/modules/plans/queries'
 import { buildPlanWorkbook, planFilename } from '@/modules/plans/export'
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ planId: string }> }
-) {
+): Promise<NextResponse> {
   const { planId } = await params
-  const supabase = await createClient()
 
-  const { data: { user } } = await supabase.auth.getUser()
+  // A read: the local session check is enough (see requireAuth).
+  const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const plan = await getPlanForExport(planId, user.id)

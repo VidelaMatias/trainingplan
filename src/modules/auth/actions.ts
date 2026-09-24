@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createIsolatedClient } from '@/lib/supabase/isolated'
-import { getCurrentUser } from '@/lib/auth/guards'
+import { getFreshUser } from '@/lib/auth/guards'
 import { changePasswordSchema, loginSchema, resetPasswordSchema } from '@/types/schemas'
 import type { ActionResult } from '@/types'
 
@@ -75,7 +75,9 @@ export async function changePassword(
   _prev: ActionResult<boolean>,
   formData: FormData,
 ): Promise<ActionResult<boolean>> {
-  const user = await getCurrentUser()
+  // Fresh from the Auth server: the JWT's email can lag a change made outside
+  // the app, and signing in with it would reject a correct password.
+  const user = await getFreshUser()
   if (!user?.email) return { data: null, error: 'Tu sesión expiró. Volvé a iniciar sesión.' }
 
   const parsed = changePasswordSchema.safeParse({

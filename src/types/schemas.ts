@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { DAYS, MAX_OBJECTIVES, PAYMENT_METHODS } from '@/types/constants'
+import { CLIENT_FILTERS, DAYS, MAX_OBJECTIVES, PAYMENT_METHODS } from '@/types/constants'
 
 // Optional free-text field coming from FormData: '' / null / whitespace all
 // normalize to null so the DB stores a clean absence instead of empty strings.
@@ -169,9 +169,18 @@ export const planSchema = z.object({
 // they're left as-is rather than folded into an unrelated change.
 export const planIdSchema = z.uuid('Plan inválido')
 
+// Ids that reach an action as bound arguments arrive from the client like any
+// other input: validated before they touch a query or a redirect URL.
+export const alumnoIdSchema = z.uuid('Alumno inválido')
+
+export const clientActiveSchema = z.object({
+  id: alumnoIdSchema,
+  active: z.boolean(),
+})
+
 export const paymentSchema = z
   .object({
-    alumno_id: z.string().uuid('Alumno inválido'),
+    alumno_id: alumnoIdSchema,
     year: z.number().int().min(2000).max(2100),
     month: z.number().int().min(1).max(12),
     paid: z.boolean(),
@@ -191,6 +200,12 @@ export const paymentSchema = z
     message: 'Una cuota impaga no lleva método de pago',
     path: ['method'],
   })
+
+// The alumnos list view an action returns to once it finishes. It reaches the
+// action as a bound argument, so it is client input like any other. An unknown
+// value does not fail the save — the write already happened; it only means
+// landing on the unfiltered list, same as parseClientFilter does for the URL.
+export const clientFilterSchema = z.enum(CLIENT_FILTERS).nullable().catch(null)
 
 export type LoginInput = z.infer<typeof loginSchema>
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>

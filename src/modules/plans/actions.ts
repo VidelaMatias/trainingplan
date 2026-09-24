@@ -1,11 +1,18 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { revalidateAppData } from '@/lib/revalidate'
 import { createClient } from '@/lib/supabase/server'
-import { requireAuth } from '@/lib/auth/guards'
-import { planIdSchema, planSchema, type PlanWeekInput } from '@/types/schemas'
+import { getCurrentUser, requireAuth } from '@/lib/auth/guards'
+import {
+  alumnoIdSchema,
+  clientFilterSchema,
+  planIdSchema,
+  planSchema,
+  type PlanWeekInput,
+} from '@/types/schemas'
 import { addWeeks, clampWeeksToStart, getMondayOf, getSundayFrom } from '@/modules/plans/utils'
+import { withClientFilter } from '@/modules/clients/utils'
 import type { ActionResult, TrainingPlanWeek } from '@/types'
 
 // The week payload handed to the RPCs. week_number is deliberately absent: the
@@ -65,13 +72,23 @@ function parsePlanForm(formData: FormData) {
   }
 }
 
+// `filter` is the alumnos list view the coach came from; the redirect keeps it
+// so the ficha's back link still returns there. `unknown` because a bound
+// argument still arrives from the client: clientFilterSchema is the only way to
+// turn it into something the redirect can use.
 export async function createPlanAction(
   clientId: string,
+  filter: unknown,
   _prev: ActionResult<null>,
   formData: FormData,
 ): Promise<ActionResult<null>> {
   const auth = await requireAuth()
   if (!auth) return { data: null, error: 'No autorizado' }
+
+  const parsedClientId = alumnoIdSchema.safeParse(clientId)
+  if (!parsedClientId.success) {
+    return { data: null, error: parsedClientId.error.issues[0].message }
+  }
 
   const parsed = parsePlanForm(formData)
   if (!parsed.success) return { data: null, error: parsed.message }
@@ -86,7 +103,7 @@ export async function createPlanAction(
   // created_by, so without that check a plan could be attached to another
   // trainer's alumno given its id.
   const { error } = await supabase.rpc('create_plan_with_weeks', {
-    p_alumno_id: clientId,
+    p_alumno_id: parsedClientId.data,
     p_title: title,
     p_start_date: startDate,
     p_end_date: endDate,
@@ -101,20 +118,31 @@ export async function createPlanAction(
     }
   }
 
-  revalidatePath('/dashboard')
-  revalidatePath('/dashboard/clients')
-  revalidatePath(`/dashboard/clients/${clientId}`)
-  redirect(`/dashboard/clients/${clientId}`)
+  revalidateAppData()
+  redirect(
+    withClientFilter(
+      `/dashboard/clients/${parsedClientId.data}`,
+      clientFilterSchema.parse(filter),
+    ),
+  )
 }
 
 export async function updatePlanAction(
   planId: string,
   clientId: string,
+  filter: unknown,
   _prev: ActionResult<null>,
   formData: FormData,
 ): Promise<ActionResult<null>> {
   const auth = await requireAuth()
   if (!auth) return { data: null, error: 'No autorizado' }
+
+  const parsedPlanId = planIdSchema.safeParse(planId)
+  if (!parsedPlanId.success) return { data: null, error: parsedPlanId.error.issues[0].message }
+  const parsedClientId = alumnoIdSchema.safeParse(clientId)
+  if (!parsedClientId.success) {
+    return { data: null, error: parsedClientId.error.issues[0].message }
+  }
 
   const parsed = parsePlanForm(formData)
   if (!parsed.success) return { data: null, error: parsed.message }
@@ -130,7 +158,7 @@ export async function updatePlanAction(
   // re-checks ownership, which folds the old existence query into the same
   // round trip.
   const { error } = await supabase.rpc('update_plan_with_weeks', {
-    p_plan_id: planId,
+    p_plan_id: parsedPlanId.data,
     p_title: title,
     p_start_date: startDate,
     p_end_date: endDate,
@@ -145,10 +173,13 @@ export async function updatePlanAction(
     }
   }
 
-  revalidatePath('/dashboard')
-  revalidatePath('/dashboard/clients')
-  revalidatePath(`/dashboard/clients/${clientId}`)
-  redirect(`/dashboard/clients/${clientId}`)
+  revalidateAppData()
+  redirect(
+    withClientFilter(
+      `/dashboard/clients/${parsedClientId.data}`,
+      clientFilterSchema.parse(filter),
+    ),
+  )
 }
 
 // Loads one plan's week bodies on demand.
@@ -161,8 +192,9 @@ export async function updatePlanAction(
 // admits a row only when its parent plan is `created_by` the caller, so another
 // trainer's planId simply comes back empty.
 export async function fetchPlanWeeks(planId: string): Promise<ActionResult<TrainingPlanWeek[]>> {
-  const auth = await requireAuth()
-  if (!auth) return { data: null, error: 'No autorizado' }
+  // A read: the local session check is enough (see requireAuth).
+  const user = await getCurrentUser()
+  if (!user) return { data: null, error: 'No autorizado' }
 
   const parsed = planIdSchema.safeParse(planId)
   if (!parsed.success) return { data: null, error: parsed.error.issues[0].message }
@@ -178,29 +210,26 @@ export async function fetchPlanWeeks(planId: string): Promise<ActionResult<Train
   return { data: (data ?? []) as unknown as TrainingPlanWeek[], error: null }
 }
 
-export async function deletePlanAction(
-  planId: string,
-  clientId: string,
-): Promise<ActionResult<null>> {
+export async function deletePlanAction(planId: string): Promise<ActionResult<null>> {
   const auth = await requireAuth()
   if (!auth) return { data: null, error: 'No autorizado' }
+
+  const parsedId = planIdSchema.safeParse(planId)
+  if (!parsedId.success) return { data: null, error: parsedId.error.issues[0].message }
 
   const supabase = await createClient()
   const { data: existing } = await supabase
     .from('training_plans')
     .select('id')
-    .eq('id', planId)
+    .eq('id', parsedId.data)
     .eq('created_by', auth.userId)
     .single()
 
   if (!existing) return { data: null, error: 'No autorizado' }
 
-  const { error } = await supabase.from('training_plans').delete().eq('id', planId)
+  const { error } = await supabase.from('training_plans').delete().eq('id', parsedId.data)
   if (error) return { data: null, error: 'No se pudo eliminar el plan' }
 
-  // The dashboard's plan tiles read from every plan, so they go stale too.
-  revalidatePath('/dashboard')
-  revalidatePath('/dashboard/clients')
-  revalidatePath(`/dashboard/clients/${clientId}`)
+  revalidateAppData()
   return { data: null, error: null }
 }

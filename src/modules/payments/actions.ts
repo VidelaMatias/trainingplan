@@ -1,6 +1,6 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
+import { revalidateAppData } from '@/lib/revalidate'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuth } from '@/lib/auth/guards'
 import { paymentSchema } from '@/types/schemas'
@@ -54,9 +54,6 @@ export async function setPayment(
   )
   if (error) return { data: null, error: 'No se pudo actualizar el pago' }
 
-  revalidatePath('/dashboard')
-  revalidatePath('/dashboard/payments')
-  revalidatePath('/dashboard/clients')
-  revalidatePath(`/dashboard/clients/${alumnoId}`)
+  revalidateAppData()
   return { data: null, error: null }
 }

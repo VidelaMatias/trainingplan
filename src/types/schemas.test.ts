@@ -1,8 +1,15 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { changePasswordSchema, clientSchema, paymentSchema, planIdSchema, planSchema } from '@/types/schemas'
-import { PAYMENT_METHODS } from '@/types/constants'
+import {
+  changePasswordSchema,
+  clientFilterSchema,
+  clientSchema,
+  paymentSchema,
+  planIdSchema,
+  planSchema,
+} from '@/types/schemas'
+import { CLIENT_FILTERS, PAYMENT_METHODS } from '@/types/constants'
 
 function week(overrides: Record<string, unknown> = {}) {
   return {
@@ -187,6 +194,22 @@ describe('planIdSchema', () => {
     assert.equal(planIdSchema.safeParse('3f2504e0-4f89-41d3-9a0c-0305e82c3301').success, true)
     for (const bad of ['', 'not-a-uuid', '../../etc/passwd', '1 OR 1=1']) {
       assert.equal(planIdSchema.safeParse(bad).success, false, `should reject ${JSON.stringify(bad)}`)
+    }
+  })
+})
+
+describe('clientFilterSchema', () => {
+  it('keeps every known list view', () => {
+    for (const key of Object.values(CLIENT_FILTERS)) {
+      assert.equal(clientFilterSchema.parse(key), key)
+    }
+    assert.equal(clientFilterSchema.parse(null), null)
+  })
+
+  it('falls back to the unfiltered list for anything else instead of failing', () => {
+    // A crafted bound argument must never reach the redirect URL.
+    for (const bad of [undefined, '', 'expiring?x=1', '//evil.example', ['expiring'], 42, {}]) {
+      assert.equal(clientFilterSchema.parse(bad), null, `should drop ${JSON.stringify(bad)}`)
     }
   })
 })

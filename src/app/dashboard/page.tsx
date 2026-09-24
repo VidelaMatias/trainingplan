@@ -4,14 +4,17 @@ import { Plus, Users, Wallet } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { StatTile } from "@/components/ui/stat-tile";
 import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/server";
-import { todayISO } from "@/lib/date";
+import { compareText } from "@/lib/text";
 import { getCurrentUser } from "@/lib/auth/guards";
-import { getClients } from "@/modules/clients/queries";
-import { compareByName } from "@/modules/clients/utils";
+import { getClientsWithPlans } from "@/modules/clients/queries";
+import {
+    compareByName,
+    matchesClientFilter,
+    withClientFilter,
+} from "@/modules/clients/utils";
 import { getAllPayments } from "@/modules/payments/queries";
 import { buildPaidIndex, getOwedMonths } from "@/modules/payments/utils";
-import { getPlanStatus, isExpiringWithin } from "@/modules/plans/utils";
+import { isPlanExpiringSoon } from "@/modules/plans/utils";
 import {
     DebtorsPanel,
     type DebtorRow,
@@ -20,71 +23,71 @@ import {
     ExpiringPlansPanel,
     type ExpiringPlanRow,
 } from "@/modules/plans/components/ExpiringPlansPanel";
-import {
-    CLIENT_FILTERS,
-    EXPIRING_SOON_DAYS,
-    PLAN_STATUS,
-} from "@/types/constants";
+import { CLIENT_FILTERS, type ClientFilter } from "@/types/constants";
 
-interface DashboardPlan {
-    id: string;
-    title: string;
-    start_date: string;
-    end_date: string;
-    alumnos: { first_name: string; last_name: string } | null;
-}
-
-export default async function DashboardPage() {
-    const supabase = await createClient();
-
-    const [user, clients, payments, { data: plansData }] = await Promise.all([
+export default async function DashboardPage(): Promise<React.JSX.Element> {
+    // The same two reads as the alumnos list. They used to be a separate
+    // training_plans query made straight from this page — unpaginated, with its
+    // error discarded, so a failure read as "0 planes activos".
+    const [user, clients, payments] = await Promise.all([
         getCurrentUser(),
-        getClients(),
+        getClientsWithPlans(),
         getAllPayments(),
-        // Both tiles below describe plans that are still running or still to come,
-        // so anything already finished is dropped in the database rather than
-        // downloaded and filtered out here — otherwise this grows without bound as
-        // the coach accumulates years of history. `alumno_id` and `active` were
-        // selected but never read (DashboardPlan does not even declare them).
-        supabase
-            .from("training_plans")
-            .select(
-                "id, start_date, end_date, title, alumnos(first_name, last_name)"
-            )
-            .gte("end_date", todayISO())
-            .order("start_date", { ascending: false }),
     ]);
-
-    const plans = (plansData ?? []) as unknown as DashboardPlan[];
-    const activePlans = plans.filter(
-        (p) => getPlanStatus(p) === PLAN_STATUS.ACTIVE
-    );
-    const expiringThisWeek = activePlans.filter((p) =>
-        isExpiringWithin(p.end_date, EXPIRING_SOON_DAYS)
-    );
 
     // Indexed once and reused across every client, instead of re-scanning the
     // full payments array per client inside getOwedMonths.
     const paidIndex = buildPaidIndex(payments);
-    const activeClients = clients.filter((c) => c.active);
-    const debtors: DebtorRow[] = activeClients
-        .map((c) => ({
-            id: c.id,
-            first_name: c.first_name,
-            last_name: c.last_name,
-            owed: getOwedMonths(c.created_at, c.id, paidIndex),
+    const rows = clients.map((client) => {
+        const owed = getOwedMonths(client.created_at, client.id, paidIndex);
+        return {
+            client,
+            owed,
+            filterable: {
+                active: client.active,
+                plans: client.plans,
+                owedCount: owed.length,
+            },
+        };
+    });
+
+    // Each tile counts alumnos with matchesClientFilter, the rule the list it
+    // opens filters by, so the number on the tile and the length of that list
+    // are the same. Counting plans instead put "2" on the tile of an alumno with
+    // two overlapping plans and "1 de N alumnos" on the list.
+    const count = (filter: ClientFilter): number =>
+        rows.filter((r) => matchesClientFilter(r.filterable, filter)).length;
+
+    const debtors: DebtorRow[] = rows
+        .filter((r) => matchesClientFilter(r.filterable, CLIENT_FILTERS.DEBTORS))
+        .map(({ client, owed }) => ({
+            id: client.id,
+            first_name: client.first_name,
+            last_name: client.last_name,
+            owed,
         }))
-        .filter(({ owed }) => owed.length > 0)
         .sort((a, b) => b.owed.length - a.owed.length || compareByName(a, b));
 
-    const expiringRows: ExpiringPlanRow[] = expiringThisWeek.map((p) => ({
-        id: p.id,
-        title: p.title,
-        end_date: p.end_date,
-        clientName: `${p.alumnos?.first_name ?? ""} ${
-            p.alumnos?.last_name ?? ""
-        }`.trim(),
-    }));
+    // The panel lists plans, not alumnos — soonest to end first.
+    const expiringRows: ExpiringPlanRow[] = clients
+        .flatMap((client) =>
+            client.plans.filter(isPlanExpiringSoon).map((plan) => ({
+                id: plan.id,
+                title: plan.title,
+                end_date: plan.end_date,
+                clientName: `${client.first_name} ${client.last_name}`.trim(),
+            }))
+        )
+        // ISO dates compare as plain strings; names with the shared collation.
+        .sort((a, b) =>
+            a.end_date !== b.end_date
+                ? a.end_date < b.end_date
+                    ? -1
+                    : 1
+                : compareText(a.clientName, b.clientName)
+        );
+
+    const expiringCount = count(CLIENT_FILTERS.EXPIRING);
 
     return (
         <div>
@@ -106,28 +109,40 @@ export default async function DashboardPage() {
                 />
                 <StatTile
                     label='Activos'
-                    value={activeClients.length}
-                    href={`/dashboard/clients?filter=${CLIENT_FILTERS.ACTIVE}`}
+                    value={count(CLIENT_FILTERS.ACTIVE)}
+                    href={withClientFilter(
+                        "/dashboard/clients",
+                        CLIENT_FILTERS.ACTIVE
+                    )}
                     valueClassName='text-green-600'
                 />
                 <StatTile
-                    label='Planes activos'
-                    value={activePlans.length}
-                    href={`/dashboard/clients?filter=${CLIENT_FILTERS.WITH_ACTIVE_PLAN}`}
+                    label='Con plan activo'
+                    value={count(CLIENT_FILTERS.WITH_ACTIVE_PLAN)}
+                    href={withClientFilter(
+                        "/dashboard/clients",
+                        CLIENT_FILTERS.WITH_ACTIVE_PLAN
+                    )}
                     valueClassName='text-primary'
                 />
                 <StatTile
                     label='Vencen esta semana'
-                    value={expiringThisWeek.length}
-                    href={`/dashboard/clients?filter=${CLIENT_FILTERS.EXPIRING}`}
+                    value={expiringCount}
+                    href={withClientFilter(
+                        "/dashboard/clients",
+                        CLIENT_FILTERS.EXPIRING
+                    )}
                     highlight={
-                        expiringThisWeek.length > 0 ? "amber" : undefined
+                        expiringCount > 0 ? "amber" : undefined
                     }
                 />
                 <StatTile
                     label='Cuotas pendientes'
                     value={debtors.length}
-                    href={`/dashboard/clients?filter=${CLIENT_FILTERS.DEBTORS}`}
+                    href={withClientFilter(
+                        "/dashboard/clients",
+                        CLIENT_FILTERS.DEBTORS
+                    )}
                     highlight={debtors.length > 0 ? "red" : undefined}
                 />
                 {/* getAllPayments ya devuelve sólo las cuotas cobradas, así que el

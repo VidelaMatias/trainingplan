@@ -8,13 +8,17 @@ import { Button, buttonVariants } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/Spinner'
 import { cn } from '@/lib/utils'
 import { deleteClientAction, toggleClientActive } from '@/modules/clients/actions'
+import { useClientFilter } from '@/modules/clients/useClientFilter'
+import { withClientFilter } from '@/modules/clients/utils'
 import type { Client } from '@/types'
 
 // Only the two fields this component actually reads, so the client list can
 // keep fetching a narrow row instead of every column of `alumnos`.
 type ClientActionsTarget = Pick<Client, 'id' | 'active'>
 
-export function ClientActions({ client }: { client: ClientActionsTarget }) {
+export function ClientActions({ client }: { client: ClientActionsTarget }): React.JSX.Element {
+  // Vista filtrada de la lista, para que la edición vuelva a ella.
+  const filter = useClientFilter()
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [togglePending, startToggle] = useTransition()
@@ -53,7 +57,7 @@ export function ClientActions({ client }: { client: ClientActionsTarget }) {
           llegaba la página entera. De paso vuelven a funcionar cmd+click y
           "abrir en una pestaña nueva". */}
       <Link
-        href={`/dashboard/clients/${client.id}/edit`}
+        href={withClientFilter(`/dashboard/clients/${client.id}/edit`, filter)}
         title="Editar"
         aria-label="Editar alumno"
         className={cn(

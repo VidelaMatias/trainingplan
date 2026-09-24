@@ -5,22 +5,34 @@ import { ChevronLeft } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { PlanForm } from '@/modules/plans/components/PlanForm'
 import { getClientById } from '@/modules/clients/queries'
+import {
+  readClientFilter,
+  withClientFilter,
+  type ClientFilterSearchParams,
+} from '@/modules/clients/utils'
 import { createPlanAction } from '@/modules/plans/actions'
 
 interface NewPlanPageProps {
   params: Promise<{ id: string }>
+  // La vista filtrada de la lista de alumnos, para que la ficha siga volviendo a ella.
+  searchParams: ClientFilterSearchParams
 }
 
-export default async function NewPlanPage({ params }: NewPlanPageProps) {
-  const { id } = await params
+export default async function NewPlanPage({
+  params,
+  searchParams,
+}: NewPlanPageProps): Promise<React.JSX.Element> {
+  const [{ id }, filter] = await Promise.all([params, readClientFilter(searchParams)])
   const client = await getClientById(id)
   if (!client) notFound()
+
+  const clientHref = withClientFilter(`/dashboard/clients/${id}`, filter)
 
   return (
     <div className="max-w-3xl">
       <div className="mb-6 flex items-center gap-3">
         <Link
-          href={`/dashboard/clients/${id}`}
+          href={clientHref}
           className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-muted hover:text-secondary-foreground"
         >
           <ChevronLeft className="size-5" />
@@ -35,8 +47,8 @@ export default async function NewPlanPage({ params }: NewPlanPageProps) {
 
       <Card className="p-6">
         <PlanForm
-          action={createPlanAction.bind(null, id)}
-          cancelHref={`/dashboard/clients/${id}`}
+          action={createPlanAction.bind(null, id, filter)}
+          cancelHref={clientHref}
           clientRhythmNotes={client.rhythm_notes}
         />
       </Card>
