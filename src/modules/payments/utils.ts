@@ -66,6 +66,20 @@ export function getOwedMonths(
   return buildMonthTimeline(createdAt, alumnoId, paid).filter((m) => !m.paid)
 }
 
+export interface BillableClient {
+  id: string
+  created_at: string
+  is_free: boolean
+}
+
+// La deuda de un alumno tal como la ven el panel y la lista. Un alumno free no
+// adeuda nada, ni siquiera los meses previos a ser liberado: sus pagos quedan
+// fuera de getAllPayments, así que sin esta regla aparecería debiendo todo.
+export function getClientOwedMonths(client: BillableClient, paid: PaidIndex): OwedMonth[] {
+  if (client.is_free) return []
+  return getOwedMonths(client.created_at, client.id, paid)
+}
+
 // Los meses adeudados en una sola línea, acotada. getOwedMonths no tiene tope:
 // camina desde el alta del alumno hasta hoy, así que uno de 2023 que nunca pagó
 // devuelve treinta y pico de etiquetas. Enumerarlas todas en la celda «Cuota»

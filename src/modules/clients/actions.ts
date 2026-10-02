@@ -52,6 +52,7 @@ function parseClientForm(formData: FormData) {
     goal: formData.get('goal'),
     notes: formData.get('notes'),
     rhythm_notes: formData.get('rhythm_notes'),
+    is_free: formData.get('is_free'),
   })
 }
 

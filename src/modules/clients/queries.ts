@@ -25,13 +25,13 @@ function clientsError(error: PagedError, at: string): Error {
   return new Error('Error al cargar los alumnos')
 }
 
-const SUMMARY_COLUMNS = 'id, created_at, first_name, last_name, active'
+const SUMMARY_COLUMNS = 'id, created_at, first_name, last_name, active, is_free'
 const LIST_COLUMNS = `${SUMMARY_COLUMNS}, email, date_of_birth, goal`
 
 // What aggregate views need: dashboard counts and the debtor list.
 export type ClientSummary = Pick<
   Client,
-  'id' | 'created_at' | 'first_name' | 'last_name' | 'active'
+  'id' | 'created_at' | 'first_name' | 'last_name' | 'active' | 'is_free'
 >
 
 // The clients table additionally shows contact and goal columns.

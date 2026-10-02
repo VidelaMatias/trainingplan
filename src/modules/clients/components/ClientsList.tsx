@@ -35,6 +35,8 @@ export interface ClientRow {
   date_of_birth: string | null
   goal: string | null
   active: boolean
+  // Liberado de cuotas: la columna «Cuota» dice Free en vez de Al día.
+  isFree: boolean
   planKey: keyof typeof PLAN_LIST_BADGE
   planEndDate: string | null
   owedLabels: string[]
@@ -239,7 +241,9 @@ export function ClientsList({ rows, initialSort }: ClientsListProps): React.JSX.
                     <Badge variant={row.active ? 'success' : 'neutral'}>
                       {row.active ? 'Activo' : 'Inactivo'}
                     </Badge>
-                    {row.owedLabels.length === 0 ? (
+                    {row.isFree ? (
+                      <Badge variant="info">Free</Badge>
+                    ) : row.owedLabels.length === 0 ? (
                       <Badge variant="success">Al día</Badge>
                     ) : (
                       <Badge variant="danger">
@@ -382,7 +386,11 @@ export function ClientsList({ rows, initialSort }: ClientsListProps): React.JSX.
                           </Badge>
                         </td>
                         <td className="px-5 py-3.5">
-                          {row.owedLabels.length === 0 ? (
+                          {row.isFree ? (
+                            <span className="inline-flex items-center rounded-lg bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700">
+                              Free
+                            </span>
+                          ) : row.owedLabels.length === 0 ? (
                             <span className="inline-flex items-center gap-1 rounded-lg bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700">
                               <Check className="size-3" />
                               Al día

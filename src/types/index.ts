@@ -46,6 +46,9 @@ export interface Client {
   notes: string | null
   rhythm_notes: string | null
   active: boolean
+  // Liberado de pagar cuotas: no adeuda meses y queda fuera de todo reporte de
+  // pagos. Sus pagos ya registrados se conservan por si deja de serlo.
+  is_free: boolean
 }
 
 export type ClientInsert = Omit<Client, 'id' | 'created_at'>

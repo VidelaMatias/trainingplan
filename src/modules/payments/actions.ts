@@ -32,12 +32,14 @@ export async function setPayment(
   const supabase = await createClient()
   const { data: existing } = await supabase
     .from('alumnos')
-    .select('id')
+    .select('id, is_free')
     .eq('id', alumnoId)
     .eq('created_by', auth.userId)
     .single()
 
   if (!existing) return { data: null, error: 'No autorizado' }
+  // The UI hides the fee grid of a free alumno; this covers a stale page.
+  if (existing.is_free) return { data: null, error: 'El alumno es free: no paga cuotas' }
 
   const { error } = await supabase.from('payments').upsert(
     {

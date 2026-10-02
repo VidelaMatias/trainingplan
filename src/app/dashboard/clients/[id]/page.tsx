@@ -72,6 +72,7 @@ export default async function ClientDetailPage({
               <Badge variant={client.active ? 'success' : 'neutral'}>
                 {client.active ? 'Activo' : 'Inactivo'}
               </Badge>
+              {client.is_free && <Badge variant="info">Free</Badge>}
             </div>
             {client.email && <p className="mt-0.5 text-sm text-muted-foreground">{client.email}</p>}
           </div>
@@ -190,28 +191,32 @@ export default async function ClientDetailPage({
             </Card>
           )}
 
-          <Card className="p-5">
-            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-secondary-foreground">
-              <CircleDollarSign className="size-4 text-muted-foreground" />
-              Historial de cuotas
-            </h2>
-            {/* Un mes por alumno desde el alta: con los años la grilla crece sin
-                techo, así que en desktop scrollea dentro de la tarjeta. En
-                mobile se deja fluir: la página ya scrollea. */}
-            <div className="flex flex-wrap gap-2 md:max-h-56 md:overflow-y-auto md:overflow-x-hidden md:pr-1">
-              {monthsWithStatus.map(({ year, month, label, paid, method }) => (
-                <PaymentToggle
-                  key={`${year}-${month}`}
-                  alumnoId={id}
-                  year={year}
-                  month={month}
-                  paid={paid}
-                  method={method}
-                  monthLabel={label}
-                />
-              ))}
-            </div>
-          </Card>
+          {/* Un alumno free no paga cuotas: no hay historial que mostrar ni
+              meses que marcar. */}
+          {!client.is_free && (
+            <Card className="p-5">
+              <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-secondary-foreground">
+                <CircleDollarSign className="size-4 text-muted-foreground" />
+                Historial de cuotas
+              </h2>
+              {/* Un mes por alumno desde el alta: con los años la grilla crece sin
+                  techo, así que en desktop scrollea dentro de la tarjeta. En
+                  mobile se deja fluir: la página ya scrollea. */}
+              <div className="flex flex-wrap gap-2 md:max-h-56 md:overflow-y-auto md:overflow-x-hidden md:pr-1">
+                {monthsWithStatus.map(({ year, month, label, paid, method }) => (
+                  <PaymentToggle
+                    key={`${year}-${month}`}
+                    alumnoId={id}
+                    year={year}
+                    month={month}
+                    paid={paid}
+                    method={method}
+                    monthLabel={label}
+                  />
+                ))}
+              </div>
+            </Card>
+          )}
         </div>
       </div>
     </div>

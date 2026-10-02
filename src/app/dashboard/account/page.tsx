@@ -1,46 +1,43 @@
-import { redirect } from 'next/navigation'
-import { Mail } from 'lucide-react'
+import { redirect } from "next/navigation";
+import { Mail } from "lucide-react";
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { getCurrentUser, getFreshUser } from '@/lib/auth/guards'
-import { ChangePasswordForm } from '@/modules/auth/components/ChangePasswordForm'
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getCurrentUser, getFreshUser } from "@/lib/auth/guards";
+import { ChangePasswordForm } from "@/modules/auth/components/ChangePasswordForm";
 
 export default async function AccountPage(): Promise<React.JSX.Element> {
-  // Guarded with the same local check as the layout and the proxy. Guarding with
-  // getFreshUser sent a revoked session (or a hiccup of the Auth server) to
-  // /login, which the proxy — still trusting the JWT — bounced straight back to
-  // /dashboard: the account page silently became the panel.
-  const [user, fresh] = await Promise.all([getCurrentUser(), getFreshUser()])
-  if (!user) redirect('/login')
-  // The email as the Auth server has it, since this is where the account is
-  // shown; the JWT's can lag a change made outside the app.
-  const email = fresh?.email ?? user.email
+    const [user, fresh] = await Promise.all([getCurrentUser(), getFreshUser()]);
+    if (!user) redirect("/login");
 
-  return (
-    <div className="max-w-2xl">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Mi cuenta</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">Tus datos de acceso</p>
-      </div>
+    const email = fresh?.email ?? user.email;
 
-      <Card className="mb-6">
-        <CardHeader className="border-b border-border">
-          <CardTitle>Email</CardTitle>
-        </CardHeader>
-        <CardContent className="flex items-center gap-2 text-sm text-secondary-foreground">
-          <Mail className="size-4 shrink-0 text-muted-foreground" />
-          <span className="truncate">{email}</span>
-        </CardContent>
-      </Card>
+    return (
+        <div className='max-w-2xl'>
+            <div className='mb-6'>
+                <h1 className='text-2xl font-bold text-slate-900'>Mi cuenta</h1>
+                <p className='mt-0.5 text-sm text-muted-foreground'>
+                    Tus datos de acceso
+                </p>
+            </div>
 
-      <Card>
-        <CardHeader className="border-b border-border">
-          <CardTitle>Cambiar contraseña</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ChangePasswordForm />
-        </CardContent>
-      </Card>
-    </div>
-  )
+            <Card className='mb-6'>
+                <CardHeader className='border-b border-border'>
+                    <CardTitle>Email</CardTitle>
+                </CardHeader>
+                <CardContent className='flex items-center gap-2 text-sm text-secondary-foreground'>
+                    <Mail className='size-4 shrink-0 text-muted-foreground' />
+                    <span className='truncate'>{email}</span>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader className='border-b border-border'>
+                    <CardTitle>Cambiar contraseña</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <ChangePasswordForm />
+                </CardContent>
+            </Card>
+        </div>
+    );
 }

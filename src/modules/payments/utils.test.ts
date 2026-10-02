@@ -4,6 +4,7 @@ import { afterEach, describe, it, mock } from 'node:test'
 import {
   buildPaidIndex,
   getAllMonthsWithStatus,
+  getClientOwedMonths,
   getOwedMonths,
   compareCashShare,
   monthLabel,
@@ -127,6 +128,24 @@ describe('getOwedMonths', () => {
     // Number('') is 0, so a malformed date used to walk from year zero to now.
     freezeAt(MIDDAY)
     assert.deepEqual(getOwedMonths('not-a-date', 'a', buildPaidIndex([])), [])
+  })
+})
+
+describe('getClientOwedMonths', () => {
+  const client = { id: 'a', created_at: '2026-06-10T12:00:00Z', is_free: false }
+
+  it('owes the same months as getOwedMonths for a paying alumno', () => {
+    freezeAt(MIDDAY)
+    const index = buildPaidIndex([paid('a', 2026, 6)])
+    assert.deepEqual(
+      getClientOwedMonths(client, index),
+      getOwedMonths(client.created_at, client.id, index),
+    )
+  })
+
+  it('owes nothing for a free alumno, however long unpaid', () => {
+    freezeAt(MIDDAY)
+    assert.deepEqual(getClientOwedMonths({ ...client, is_free: true }, buildPaidIndex([])), [])
   })
 })
 

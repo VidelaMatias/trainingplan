@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useActionState, useRef, useState } from 'react'
+import { startTransition, useActionState, useRef, useState } from 'react'
 import { AlertCircle, Plus, Trash2 } from 'lucide-react'
 
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -56,8 +56,21 @@ export function ClientForm({
     setObjectiveRows((rows) => rows.filter((row) => row.id !== id))
   }
 
+  // React resets every uncontrolled field after an `action` submission, whatever
+  // the result — so a rejected save (a bad email, an age out of range) wiped
+  // everything the coach had typed. Once hydrated, onSubmit dispatches the same
+  // action by hand: React sees the prevented event and neither runs the action
+  // again nor resets the form. `action` stays on the <form> for the submit that
+  // lands before hydration, which would otherwise be a native GET carrying every
+  // field in the URL. A successful save redirects away either way.
+  function handleSubmit(event: React.SubmitEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const formData = new FormData(event.currentTarget)
+    startTransition(() => formAction(formData))
+  }
+
   return (
-    <form action={formAction} className="space-y-5">
+    <form action={formAction} onSubmit={handleSubmit} className="space-y-5">
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
         <div className="space-y-1">
           <Label htmlFor="first_name">
@@ -192,6 +205,26 @@ export function ClientForm({
           className="resize-none"
         />
       </div>
+
+      <label
+        htmlFor="is_free"
+        className="flex cursor-pointer items-start gap-3 rounded-lg border border-border px-4 py-3 transition hover:bg-muted"
+      >
+        <input
+          id="is_free"
+          name="is_free"
+          type="checkbox"
+          defaultChecked={client?.is_free ?? false}
+          className="mt-0.5 size-4 shrink-0 cursor-pointer accent-primary"
+        />
+        <span>
+          <span className="block text-sm font-medium text-secondary-foreground">Free</span>
+          <span className="mt-0.5 block text-xs text-muted-foreground">
+            Liberado de pagar cuotas: no aparece en cuotas pendientes ni en el reporte de métodos
+            de pago.
+          </span>
+        </span>
+      </label>
 
       <div className="border-t border-border pt-5">
         <h2 className="text-sm font-semibold text-secondary-foreground">Marcas referenciales</h2>

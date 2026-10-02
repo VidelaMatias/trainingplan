@@ -13,7 +13,7 @@ import {
     withClientFilter,
 } from "@/modules/clients/utils";
 import { getAllPayments } from "@/modules/payments/queries";
-import { buildPaidIndex, getOwedMonths } from "@/modules/payments/utils";
+import { buildPaidIndex, getClientOwedMonths } from "@/modules/payments/utils";
 import { isPlanExpiringSoon } from "@/modules/plans/utils";
 import {
     DebtorsPanel,
@@ -36,10 +36,11 @@ export default async function DashboardPage(): Promise<React.JSX.Element> {
     ]);
 
     // Indexed once and reused across every client, instead of re-scanning the
-    // full payments array per client inside getOwedMonths.
+    // full payments array per client inside getClientOwedMonths. Free alumnos
+    // owe nothing, so they never reach the debtors tile or panel.
     const paidIndex = buildPaidIndex(payments);
     const rows = clients.map((client) => {
-        const owed = getOwedMonths(client.created_at, client.id, paidIndex);
+        const owed = getClientOwedMonths(client, paidIndex);
         return {
             client,
             owed,

@@ -126,6 +126,12 @@ describe('clientSchema', () => {
     assert.equal(parsed.phone, '1122')
   })
 
+  it('reads is_free from a checkbox: present when ticked, absent otherwise', () => {
+    assert.equal(clientSchema.parse({ ...base, is_free: 'on' }).is_free, true)
+    assert.equal(clientSchema.parse({ ...base, is_free: null }).is_free, false)
+    assert.equal(clientSchema.parse(base).is_free, false)
+  })
+
   it('validates an email only when one was given', () => {
     assert.equal(clientSchema.safeParse({ ...base, email: 'nope' }).success, false)
     assert.equal(clientSchema.safeParse({ ...base, email: 'ana@example.com' }).success, true)

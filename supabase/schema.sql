@@ -42,7 +42,10 @@ create table public.alumnos (
   goal             text,
   notes            text,
   rhythm_notes     text,
-  active           boolean default true not null
+  active           boolean default true not null,
+  -- Alumno liberado de pagar cuotas: no adeuda meses ni entra en los reportes
+  -- de pagos.
+  is_free          boolean default false not null
 );
 
 alter table public.alumnos enable row level security;

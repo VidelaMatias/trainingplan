@@ -37,7 +37,8 @@ function toRecords(data: unknown): PaymentRecord[] {
 // this query is otherwise unfiltered.
 //
 // Only for views that genuinely span every alumno (dashboard debtors, client
-// list badges). For a single alumno use getPaymentsForClient.
+// list badges, payment methods report). For a single alumno use
+// getPaymentsForClient.
 export async function getAllPayments(): Promise<PaymentRecord[]> {
   const supabase = await createClient()
 
@@ -49,6 +50,10 @@ export async function getAllPayments(): Promise<PaymentRecord[]> {
         // Only paid rows carry information: buildPaidIndex drops the rest, and
         // unmarking a fee leaves a `paid = false` row behind.
         .eq('paid', true)
+        // A free alumno is invisible to every payment view: the fees recorded
+        // before they were freed stay in the table (so un-freeing restores the
+        // history) but count nowhere — not in the report, not in its tile.
+        .eq('alumnos.is_free', false)
         // (alumno_id, year, month) is unique, so this is a total order: paging
         // over it can neither skip nor repeat a row. Without it PostgREST
         // returned rows in heap order, and marking a fee paid rewrote that row

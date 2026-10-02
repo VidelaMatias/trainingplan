@@ -38,6 +38,10 @@ function nullableNumber(opts: { min: number; max: number; int?: boolean; message
   }, base.min(opts.min, opts.message).max(opts.max, opts.message).nullable())
 }
 
+// An HTML checkbox only reaches FormData when ticked (as 'on'); unticked it is
+// simply absent. So presence is the value, and absence reads as false.
+const formCheckbox = z.preprocess((v) => v === 'on' || v === true, z.boolean())
+
 // A single day cell in a plan week: empty content collapses to null.
 // Whitespace is preserved (not trimmed) — coaches format sessions across lines.
 // The cap is far above any real session but keeps a runaway paste out of the DB.
@@ -121,6 +125,7 @@ export const clientSchema = z.object({
   goal: nullableText,
   notes: nullableText,
   rhythm_notes: nullableText,
+  is_free: formCheckbox,
 })
 
 export const planWeekSchema = z.object({
